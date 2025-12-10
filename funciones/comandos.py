@@ -1,12 +1,9 @@
 # funciones/comandos.py
-import pyttsx3
-import pywhatkit
 from datetime import datetime
 from googlesearch import search
 from funciones.navegador import abrir_en_navegador
 import urllib
 import wikipedia
-from db.models import get_db
 from servicios.historial_service import HistorialService
 from typing import Optional
 from sqlalchemy.orm import Session
@@ -14,34 +11,33 @@ from sqlalchemy.orm import Session
 wikipedia.set_lang("es")
 
 def hablaBOT(texto: str):
-    """El asistente responde con voz."""
-    try:
-        habla = pyttsx3.init()
-        voces = habla.getProperty("voices")
-        habla.setProperty("voice", voces[0].id)
-        habla.say(texto)
-        habla.runAndWait()
-    except Exception as e:
-        print(f"Error en hablaBOT: {e}")
+    """El asistente responde (versión sin voz para web)"""
+    print(f"Asistente: {texto}")
+    # En modo web, solo imprimimos en consola
+    # No usamos síntesis de voz que no funciona en Railway
+    return texto
 
 def ejecutar_comando(texto: str, db: Optional[Session] = None, usuario_id: Optional[int] = None) -> str:
-    """Ejecuta el comando y registra en el historial si se proporciona db y usuario_id"""
+    """Ejecuta el comando y registra en el historial"""
     texto = texto.lower()
     respuesta = ""
     
     try:
         if "reproduce" in texto:
             musica = texto.replace("reproduce", "").strip()
-            respuesta = f"Reproduciendo {musica}"
+            respuesta = f"Reproduciendo {musica} en YouTube"
             hablaBOT(respuesta)
-            pywhatkit.playonyt(musica)
+            # En modo web, generamos URL para el frontend
+            query = urllib.parse.quote(musica)
+            url = f"https://www.youtube.com/results?search_query={query}"
+            abrir_en_navegador(url)
             
         elif "busca en y" in texto or "busca en youtube" in texto:
             if "busca en y" in texto:
                 musica = texto.replace("busca en y", "").strip()
             else:
                 musica = texto.replace("busca en youtube", "").strip()
-            respuesta = f"buscando en youtube {musica}"
+            respuesta = f"Buscando en YouTube: {musica}"
             hablaBOT(respuesta)
             query = urllib.parse.quote(musica)
             url = f"https://www.youtube.com/results?search_query={query}"
@@ -54,25 +50,24 @@ def ejecutar_comando(texto: str, db: Optional[Session] = None, usuario_id: Optio
 
         elif "busca en" in texto and "youtube" not in texto:
             consulta = texto.replace("busca en", "").replace("google", "").strip()
-            respuesta = f"Buscando {consulta} en Google"
+            respuesta = f"Buscando: {consulta} en Google"
             hablaBOT(respuesta)
             query = urllib.parse.quote(consulta)
             url = f"https://www.google.com/search?q={query}"
             abrir_en_navegador(url)
-            hablaBOT("Aquí tienes los resultados en tu navegador.")
             respuesta = f"{respuesta}. Resultados abiertos en el navegador."
 
         elif "dime" in texto:
             consulta = texto.replace("dime", "").strip()
-            respuesta = f"Buscando {consulta}"
+            respuesta = f"Buscando información sobre: {consulta}"
             hablaBOT(respuesta)
             try:
                 resumen = wikipedia.summary(consulta, sentences=2)
-                respuesta_final = f"Según Wikipedia, {resumen}"
+                respuesta_final = f"Según Wikipedia: {resumen}"
                 hablaBOT(respuesta_final)
                 respuesta = respuesta_final
             except wikipedia.exceptions.DisambiguationError as e:
-                respuesta_final = f"Hay varios resultados posibles para {consulta}. Por ejemplo: {', '.join(e.options[:3])}"
+                respuesta_final = f"Hay varios resultados para {consulta}. Por ejemplo: {', '.join(e.options[:3])}"
                 hablaBOT(respuesta_final)
                 respuesta = respuesta_final
             except wikipedia.exceptions.PageError:
