@@ -11,14 +11,6 @@ from typing import Optional
 import os
 from dotenv import load_dotenv
 
-# Intentar importar Resend (opcional)
-try:
-    import resend
-    RESEND_AVAILABLE = True
-except ImportError:
-    RESEND_AVAILABLE = False
-    print("⚠️ Resend no está instalado. Usando modo desarrollo.")
-
 # Cargar archivo env
 load_dotenv("key/key.env")
 
@@ -100,26 +92,18 @@ class AuthService:
         db.add(recuperacion)
         db.commit()
         
-        # Enviar correo usando Resend si está disponible
-        envio_exitoso = False
-        resend_api_key = os.getenv("RESEND_API_KEY")
+        # EN RAILWAY: Mostrar siempre el código en logs
+        print("=" * 60)
+        print("📧 RECUPERACIÓN DE CONTRASEÑA")
+        print("=" * 60)
+        print(f"Usuario: {usuario.usuario}")
+        print(f"Correo del usuario: {usuario.correo}")
+        print(f"Código generado: {codigo}")
+        print(f"Expira en: 1 hora")
+        print("=" * 60)
         
-        if RESEND_AVAILABLE and resend_api_key:
-            try:
-                envio_exitoso = AuthService._enviar_con_resend(usuario.correo, usuario.usuario, codigo, resend_api_key)
-            except Exception as e:
-                print(f"❌ Error enviando con Resend: {e}")
-                envio_exitoso = False
-        
-        # Si Resend falló o no está configurado, intentar con SMTP tradicional
-        if not envio_exitoso:
-            envio_exitoso = AuthService._enviar_con_smtp(usuario.correo, usuario.usuario, codigo)
-        
-        # Si todo falla, mostrar el código en consola (modo desarrollo)
-        if not envio_exitoso:
-            print(f"📧 [MODO DESARROLLO] Para: {usuario.usuario} ({usuario.correo})")
-            print(f"📧 [MODO DESARROLLO] Código: {codigo}")
-            print(f"📧 [MODO DESARROLLO] Expira en: 1 hora")
+        # Intentar enviar correo si hay configuración
+        envio_exitoso = AuthService._intentar_enviar_correo(usuario.correo, usuario.usuario, codigo)
         
         # Enmascarar correo para mostrar al usuario
         correo_parts = usuario.correo.split('@')
@@ -136,116 +120,89 @@ class AuthService:
         return {
             "usuario": usuario.usuario,
             "correo": masked_email,
-            "codigo": codigo if not envio_exitoso else None,
             "envio_exitoso": envio_exitoso
         }
     
     @staticmethod
-def _enviar_con_resend(destinatario: str, usuario: str, codigo: str, api_key: str) -> bool:
-    """Enviar correo usando Resend API"""
-    try:
-        resend.api_key = api_key
-        
-        params = {
-            "from": "Asistente Virtual <hohayod@gmail.com>",  
-            "to": [destinatario],
-            "subject": "Código de recuperación - Asistente Virtual",
-            "html": f"""
-            <!DOCTYPE html>
-            <html>
-            <head>
-                <meta charset="UTF-8">
-                <style>
-                    body {{ font-family: Arial, sans-serif; line-height: 1.6; color: #333; }}
-                    .container {{ max-width: 600px; margin: 0 auto; padding: 20px; }}
-                    .header {{ background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 20px; text-align: center; border-radius: 10px 10px 0 0; }}
-                    .content {{ background: #f9f9f9; padding: 30px; border-radius: 0 0 10px 10px; }}
-                    .code {{ font-size: 32px; font-weight: bold; color: #4CAF50; text-align: center; padding: 20px; background: white; border-radius: 8px; margin: 20px 0; letter-spacing: 10px; }}
-                    .footer {{ text-align: center; margin-top: 30px; color: #666; font-size: 12px; }}
-                </style>
-            </head>
-            <body>
-                <div class="container">
-                    <div class="header">
-                        <h1>🔐 Recuperación de Contraseña</h1>
-                    </div>
-                    <div class="content">
-                        <p>Hola <strong>{usuario}</strong>,</p>
-                        <p>Has solicitado recuperar tu contraseña en el Asistente Virtual.</p>
-                        <p>Usa el siguiente código para continuar:</p>
-                        
-                        <div class="code">{codigo}</div>
-                        
-                        <p>Este código expirará en <strong>1 hora</strong>.</p>
-                        <p>Si no solicitaste este código, puedes ignorar este mensaje de manera segura.</p>
-                        <p>Para tu seguridad, no compartas este código con nadie.</p>
-                        
-                        <div class="footer">
-                            <p>Equipo del Asistente Virtual</p>
-                            <p>Este es un correo automático, por favor no respondas a este mensaje.</p>
+    def _intentar_enviar_correo(destinatario: str, usuario: str, codigo: str) -> bool:
+        """Intentar enviar correo usando diferentes métodos"""
+        # 1. Intentar con Resend si está configurado
+        resend_api_key = os.getenv("RESEND_API_KEY")
+        if resend_api_key:
+            try:
+                import resend
+                resend.api_key = resend_api_key
+                
+                params = {
+                    "from": "hohayod@gmail.com",
+                    "to": [destinatario],
+                    "subject": "Código de recuperación - Asistente Virtual",
+                    "html": f"""
+                    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+                        <h2 style="color: #333; background: #f4f4f4; padding: 20px; border-radius: 10px 10px 0 0;">
+                            🔐 Recuperación de Contraseña
+                        </h2>
+                        <div style="padding: 30px; background: white; border: 1px solid #ddd;">
+                            <p>Hola <strong>{usuario}</strong>,</p>
+                            <p>Has solicitado recuperar tu contraseña en el Asistente Virtual.</p>
+                            <div style="background: #f9f9f9; padding: 25px; text-align: center; margin: 20px 0; border-radius: 8px; border: 2px dashed #4CAF50;">
+                                <div style="font-size: 36px; font-weight: bold; color: #333; letter-spacing: 10px;">
+                                    {codigo}
+                                </div>
+                            </div>
+                            <p>Este código expirará en <strong>1 hora</strong>.</p>
+                            <p>Si no solicitaste este código, ignora este mensaje.</p>
+                            <div style="margin-top: 30px; padding-top: 20px; border-top: 1px solid #eee; color: #666; font-size: 12px;">
+                                <p>Equipo del Asistente Virtual</p>
+                            </div>
                         </div>
                     </div>
-                </div>
-            </body>
-            </html>
-            """
-        }
+                    """
+                }
+                
+                resend.Emails.send(params)
+                print(f"✅ Correo enviado via Resend desde hohayod@gmail.com a {destinatario}")
+                return True
+                
+            except Exception as e:
+                print(f"⚠️ Resend falló: {e}")
         
-        response = resend.Emails.send(params)
-        print(f"✅ Correo enviado desde hohayod@gmail.com a {destinatario}")
-        return True
-        
-    except Exception as e:
-        print(f"❌ Error con Resend: {e}")
-        return False
-    
-    @staticmethod
-    def _enviar_con_smtp(destinatario: str, usuario: str, codigo: str) -> bool:
-        """Enviar correo usando SMTP tradicional"""
+        # 2. Intentar con SMTP tradicional
         remitente = os.getenv("CORRE_USU", "")
         password = os.getenv("CORREO_CON", "")
-        smtp_server = os.getenv("SMTP_SERVER", "smtp.gmail.com")
-        smtp_port = int(os.getenv("SMTP_PORT", "587"))
         
-        if not remitente or not password:
-            print("⚠️ Credenciales SMTP no configuradas")
-            return False
+        if remitente and password:
+            try:
+                mensaje = MIMEMultipart()
+                mensaje["From"] = "Asistente Virtual <hohayod@gmail.com>"
+                mensaje["To"] = destinatario
+                mensaje["Subject"] = "Código de recuperación - Asistente Virtual"
+                
+                cuerpo = f"""
+                <h3>🔐 Recuperación de Contraseña</h3>
+                <p>Hola <strong>{usuario}</strong>,</p>
+                <p>Tu código de recuperación es:</p>
+                <p style="font-size: 24px; font-weight: bold; color: #4CAF50;">{codigo}</p>
+                <p>Válido por 1 hora.</p>
+                <p>Equipo del Asistente Virtual</p>
+                """
+                
+                mensaje.attach(MIMEText(cuerpo, "html"))
+                
+                with smtplib.SMTP("smtp.gmail.com", 587, timeout=10) as server:
+                    server.starttls()
+                    server.login(remitente, password)
+                    server.send_message(mensaje)
+                
+                print(f"✅ Correo enviado via Gmail SMTP a {destinatario}")
+                return True
+                
+            except Exception as e:
+                print(f"⚠️ SMTP Gmail falló: {e}")
         
-        try:
-            mensaje = MIMEMultipart()
-            mensaje["From"] = remitente
-            mensaje["To"] = destinatario
-            mensaje["Subject"] = "Código de recuperación - Asistente Virtual"
-            
-            cuerpo = f"""
-            <h2>🔐 Recuperación de Contraseña</h2>
-            <p>Hola <strong>{usuario}</strong>,</p>
-            <p>Has solicitado recuperar tu contraseña.</p>
-            <p style="font-size: 32px; font-weight: bold; color: #4CAF50; padding: 20px; background: #f1f1f1; border-radius: 10px; text-align: center; letter-spacing: 10px;">
-            {codigo}
-            </p>
-            <p>Este código expirará en <strong>1 hora</strong>.</p>
-            <p>Si no solicitaste este código, ignora este mensaje.</p>
-            <hr>
-            <p style="color: #666; font-size: 12px;">
-            Equipo del Asistente Virtual
-            </p>
-            """
-            
-            mensaje.attach(MIMEText(cuerpo, "html"))
-            
-            # Intentar conexión SMTP con timeout
-            with smtplib.SMTP(smtp_server, smtp_port, timeout=10) as server:
-                server.starttls()
-                server.login(remitente, password)
-                server.send_message(mensaje)
-            
-            print(f"✅ Correo enviado via SMTP a {destinatario}")
-            return True
-            
-        except Exception as e:
-            print(f"❌ Error con SMTP: {e}")
-            return False
+        # 3. Si todo falla, solo mostrar en logs (modo desarrollo)
+        print(f"📧 [MODO DESARROLLO] El código {codigo} fue mostrado en logs para {usuario}")
+        return False
     
     @staticmethod
     def validar_codigo_recuperacion(db: Session, usuario_o_correo: str, codigo: str, marcar_como_utilizado: bool = True):
