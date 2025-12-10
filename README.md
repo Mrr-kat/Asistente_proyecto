@@ -6,7 +6,6 @@
 ###  **Reconocimiento de Voz**
 - Grabación de audio en tiempo real
 - Transcripción a texto con SpeechRecognition
-- Detección automática de silencio
 - Comandos por voz en español
 
 ### **Dashboard Interactivo**
@@ -30,57 +29,28 @@
 - Eliminación lógica/física
 - Filtros por usuario y fecha
 
-###  **Despliegue en Railway**
-URL del Proyecto: https://web-production-186d7.up.railway.app/login
 
-### **Diagrama de clases**
-classDiagram
-    class Usuario {
-        +int id
-        +str nombre_completo
-        +str usuario
-        +str correo
-        +str contraseña
-        +datetime fecha_registro
-        +bool activo
-        +list historial
-        +list recuperaciones
-        +list estadisticas
-    }
-    
-  class HistorialInteraccion {
-        +int id
-        +int usuario_id
-        +str comando_usuario
-        +str comando_ejecutado
-        +str respuesta_asistente
-        +datetime fecha_hora
-        +bool activo
-        +to_dict()
-    }
-    
-  class RecuperacionContraseña {
-        +int id
-        +int usuario_id
-        +str codigo
-        +datetime fecha_creacion
-        +datetime expiracion
-        +bool utilizado
-    }
-    
-  class EstadisticasUsuario {
-        +int id
-        +int usuario_id
-        +datetime fecha
-        +int comandos_ejecutados
-        +int tiempo_uso_minutos
-        +int comandos_exitosos
-        +int comandos_fallidos
-    }
-    
-  Usuario "1" --* "many" HistorialInteraccion
-  Usuario "1" --* "many" RecuperacionContraseña
-  Usuario "1" --* "many" EstadisticasUsuario
+### Tecnologías Utilizadas
+
+#### Backend
+- **FastAPI 0.104.1**: Framework web moderno y rápido
+- **SQLAlchemy 2.0.23**: ORM para interacción con base de datos
+- **SpeechRecognition 3.10.0**: Librería para transcripción de voz
+- **ReportLab 4.0.9**: Generación de reportes PDF
+- **WebSockets 12.0**: Comunicación bidireccional en tiempo real
+
+#### Frontend
+- **HTML5/CSS3**: Estructura y estilos responsivos
+- **JavaScript ES6+**: Lógica del cliente
+- **Chart.js 4.4.0**: Gráficos estadísticos interactivos
+- **Socket.IO 4.5.0**: Cliente WebSocket
+- **Boxicons 2.1.4**: Iconografía moderna
+
+#### Base de Datos y Hosting
+- **PostgreSQL 15**: Base de datos relacional
+- **Railway.app**: Plataforma de despliegue
+- **Docker**: Contenerización de la aplicación
+
 
 ###  **Comandos Disponibles**
 ```bash
