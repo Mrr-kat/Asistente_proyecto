@@ -6,7 +6,6 @@ python-multipart==0.0.6
 # Base de datos (usaremos PostgreSQL en Railway)
 sqlalchemy==2.0.23
 psycopg2-binary==2.9.9  # Para PostgreSQL
-asyncpg==0.29.0
 
 # WebSockets
 python-socketio==5.10.0
@@ -16,9 +15,6 @@ websockets==12.0
 # Procesamiento de audio (versiones compatibles)
 pydub==0.25.1
 SpeechRecognition==3.10.0
-
-# Síntesis de voz (opcional, compatible)
-pyttsx3==2.90
 
 # Navegación y web
 pywhatkit==5.4
@@ -42,8 +38,6 @@ bcrypt==4.1.2
 # Templates
 jinja2==3.1.2
 
-# Para navegador (sin psutil que no es compatible)
-webbrowser==0.0.0
-
-# Para detectar palabra clave (alternativa más liviana)
-vosk==0.3.45  # O usar whisper offline como alternativa
+# Elimina estas (no compatibles):
+# pyttsx3==2.90
+# vosk==0.3.45

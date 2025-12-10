@@ -1,6 +1,4 @@
 import os
-#import pvporcupine
-#import pyaudio
 import struct
 import threading
 import asyncio
@@ -13,11 +11,12 @@ from pydub import AudioSegment
 import speech_recognition as sr
 from sqlalchemy.orm import Session
 from datetime import datetime
-from db.models import get_db, HistorialInteraccion, Usuario
+from db.models import get_db, SessionLocal, HistorialInteraccion, Usuario
 from servicios.historial_service import HistorialService
 from servicios.auth_service import AuthService
 from servicios.estadisticas_service import EstadisticasService
 from funciones.comandos import ejecutar_comando
+from funciones.comandos_web import ejecutar_comando_web
 from dotenv import load_dotenv
 
 
@@ -28,12 +27,6 @@ sio = socketio.AsyncServer(async_mode="asgi", cors_allowed_origins="*")
 # Cargar variables de entorno
 load_dotenv()
 
-# Configuración para Railway
-DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///asistente_virtual.db")
-if DATABASE_URL.startswith("postgresql"):
-    # Configurar para PostgreSQL
-    DATABASE_URL = DATABASE_URL.replace("postgresql", "postgresql+asyncpg", 1)
-
 # Montar carpeta de templates y estáticos
 templates = Jinja2Templates(directory="templates")
 app.mount("/static", StaticFiles(directory="static"), name="static")
@@ -42,7 +35,7 @@ app.mount("/static", StaticFiles(directory="static"), name="static")
 @app.middleware("http")
 async def verificar_autenticacion(request: Request, call_next):
     # Rutas públicas que no requieren autenticación
-    rutas_publicas = ["/login", "/registro", "/recuperacion", "/static", "/favicon.ico"]
+    rutas_publicas = ["/login", "/registro", "/recuperacion", "/static", "/favicon.ico", "/health"]
     
     if any(request.url.path.startswith(ruta) for ruta in rutas_publicas):
         return await call_next(request)
@@ -245,41 +238,9 @@ async def verificar_codigo_recuperacion(
     codigo: str = Form(...),
     db: Session = Depends(get_db)
 ):
-    """Verificar código de recuperación (NO marcar como usado aún)"""
+    """Verificar código de recuperación"""
     try:
-        # Validar sin marcar como usado
         usuario_id = AuthService.validar_codigo_recuperacion(db, usuario_correo, codigo, marcar_como_utilizado=False)
-        
-        # Redirigir al paso 3
-        return RedirectResponse(
-            url=f"/recuperacion?usuario={usuario_correo}&codigo={codigo}&step=3",
-            status_code=status.HTTP_303_SEE_OTHER
-        )
-        
-    except ValueError as e:
-        return templates.TemplateResponse("login/recuperacion.html", {
-            "request": request,
-            "error": str(e),
-            "usuario": usuario_correo,
-            "step": 2
-        })
-    except Exception as e:
-        return templates.TemplateResponse("login/recuperacion.html", {
-            "request": request,
-            "error": f"Error al verificar código: {str(e)}",
-            "usuario": usuario_correo,
-            "step": 2
-        })
-
-@app.post("/recuperacion/verificar")
-async def verificar_codigo_recuperacion(
-    request: Request,
-    usuario_correo: str = Form(...),
-    codigo: str = Form(...),
-    db: Session = Depends(get_db)
-):
-    try:
-        usuario_id = AuthService.validar_codigo_recuperacion(db, usuario_correo, codigo)
         
         # Redirigir al paso 3
         return RedirectResponse(
@@ -367,8 +328,7 @@ async def cerrar_sesion():
     response.delete_cookie("usuario_id")
     return response
 
-# Ruta para procesar audio (actualizada para usar usuario_id)
-# Modificar la función de procesamiento de audio
+# Ruta para procesar audio
 @app.post("/audio")
 async def audio(audio: UploadFile, request: Request, db: Session = Depends(get_db)):
     try:
@@ -401,6 +361,8 @@ async def audio(audio: UploadFile, request: Request, db: Session = Depends(get_d
             with sr.AudioFile(wav_path) as source:
                 audio_data = recognizer.record(source)
             text = recognizer.recognize_google(audio_data, language="es-ES")
+        except sr.UnknownValueError:
+            text = "No se pudo entender el audio"
         except Exception as e:
             print(f"Error en reconocimiento: {e}")
             text = "No se pudo transcribir el audio"
@@ -413,13 +375,11 @@ async def audio(audio: UploadFile, request: Request, db: Session = Depends(get_d
         except:
             pass
 
-        # Ejecutar comando
-        if text != "No se pudo transcribir el audio":
-            # Usar ejecución asíncrona sin hilos
-            def ejecutar_comando_con_db():
+        # Ejecutar comando si se transcribió
+        if text and text != "No se pudo transcribir el audio" and text != "No se pudo entender el audio":
+            # Ejecutar en segundo plano
+            def ejecutar_en_segundo_plano():
                 try:
-                    from funciones.comandos import ejecutar_comando
-                    # Crear nueva sesión
                     db_local = SessionLocal()
                     try:
                         ejecutar_comando(text, db_local, usuario_id)
@@ -428,20 +388,17 @@ async def audio(audio: UploadFile, request: Request, db: Session = Depends(get_d
                 except Exception as e:
                     print(f"Error ejecutando comando: {e}")
 
-            # Usar asyncio para ejecución en segundo plano
-            import asyncio
-            asyncio.create_task(asyncio.to_thread(ejecutar_comando_con_db))
+            # Usar threading para no bloquear
+            thread = threading.Thread(target=ejecutar_en_segundo_plano, daemon=True)
+            thread.start()
 
         return JSONResponse({"text": text}, status_code=200)
 
-    except sr.UnknownValueError:
-        return JSONResponse({"error": "No se pudo entender el audio."}, status_code=400)
     except Exception as e:
         print(f"Error general en /audio: {e}")
         return JSONResponse({"text": "Error procesando audio"}, status_code=200)
 
-
-# Agregar este endpoint después de /audio
+# Procesar comando de texto
 @app.post("/comando")
 async def procesar_comando(request: Request, db: Session = Depends(get_db)):
     """Procesar comando de texto (para modo web)"""
@@ -453,7 +410,6 @@ async def procesar_comando(request: Request, db: Session = Depends(get_db)):
         if not texto:
             return JSONResponse({"error": "Texto vacío"}, status_code=400)
         
-        from funciones.comandos_web import ejecutar_comando_web
         resultado = ejecutar_comando_web(texto, db, usuario_id)
         
         return JSONResponse(resultado, status_code=200)
@@ -461,13 +417,12 @@ async def procesar_comando(request: Request, db: Session = Depends(get_db)):
     except Exception as e:
         return JSONResponse({"error": str(e)}, status_code=500)
 
-# Endpoint para probar
+# Endpoint para health check
 @app.get("/health")
 async def health_check():
     return {"status": "ok", "timestamp": datetime.now().isoformat()}
 
-
-# Rutas para el historial (actualizadas para usar usuario_id)
+# Rutas para el historial
 @app.get("/historial")
 async def obtener_historial(
     request: Request,
@@ -549,9 +504,6 @@ async def generar_reporte_detallado(request: Request, db: Session = Depends(get_
     """Generar reporte detallado del dashboard"""
     usuario_id = request.state.usuario_id
     
-    # Aquí podrías generar un PDF más detallado con gráficos
-    # Por ahora devolvemos datos JSON para los gráficos en el frontend
-    
     estadisticas = EstadisticasService.obtener_estadisticas_generales(db, usuario_id)
     tendencias = EstadisticasService.obtener_tendencias(db, usuario_id)
     
@@ -561,69 +513,37 @@ async def generar_reporte_detallado(request: Request, db: Session = Depends(get_
             "estadisticas": estadisticas,
             "tendencias": tendencias,
             "resumen": {
-                "total_comandos": estadisticas["total_comandos"],
+                "total_comandos": estadisticas.get("total_comandos", 0),
                 "comando_mas_usado": estadisticas.get("comando_mas_usado"),
                 "hora_pico": estadisticas.get("hora_pico"),
-                "tasa_exito": tendencias["tasa_exito"]
+                "tasa_exito": tendencias.get("tasa_exito", 0)
             }
         }
     }
 
+# WebSocket events
+@sio.on("connect")
+async def connect(sid, environ):
+    print(f"Cliente conectado: {sid}")
 
-#///////////////////
+@sio.on("disconnect")
+async def disconnect(sid):
+    print(f"Cliente desconectado: {sid}")
 
-app_mount = socketio.ASGIApp(sio, app)
-
-# Configuración de Porcupine
-access_key = "jvi0VvjYVgQMIa+C6UMiC7avc6uWoWPP2guR6F6QQyceIU5bT/s7fQ=="
-porcupine = pvporcupine.create(access_key=access_key, keywords=["alexa"])
-
-# Configuración de PyAudio
-pa = pyaudio.PyAudio()
-audio_stream = pa.open(
-    rate=porcupine.sample_rate,
-    channels=1,
-    format=pyaudio.paInt16,
-    input=True,
-    frames_per_buffer=porcupine.frame_length
-)
-
-grabando = False
-detener = False
-
-# Función para iniciar grabación
-async def iniciar_grabacion():
-    global grabando
-    print("Iniciando grabación...")
-    grabando = True
+@sio.on("iniciar_grabacion")
+async def iniciar_grabacion_socket(sid, data=None):
+    print("Iniciando grabación vía WebSocket")
     await sio.emit("iniciar_grabacion", {"message": "Grabación iniciada"})
 
-# Evento de detener grabación desde cliente
 @sio.on("detener_grabacion")
-async def detener_grabacion(sid, data=None):
-    global grabando
-    print("Grabación detenida owo.")
-    grabando = False
-    await sio.emit("detener_grabacion", {"message": "Grabación detenida por silencio"})
+async def detener_grabacion_socket(sid, data=None):
+    print("Deteniendo grabación vía WebSocket")
+    await sio.emit("detener_grabacion", {"message": "Grabación detenida"})
 
-# Escucha pasiva de palabra clave
-def escucha_pasiva():
-    """Función simplificada para Railway (sin detección por voz)"""
-    print("Modo web: Detección por voz desactivada. Usa el botón del micrófono.")
-    return
+# Mount Socket.IO app
+app_mount = socketio.ASGIApp(sio, app)
 
-# Liberar recursos
-def liberar_recursos():
-    global detener
-    detener = True
-    audio_stream.stop_stream()
-    audio_stream.close()
-    pa.terminate()
-    porcupine.delete()
-    print("Recursos liberados. Saliendo del programa...")
-
-# Main
+# Main para desarrollo local
 if __name__ == "__main__":
-    threading.Thread(target=escucha_pasiva, daemon=True).start()
     import uvicorn
-    uvicorn.run(app_mount, host="0.0.0.0", port=8000)
+    uvicorn.run("main:app_mount", host="0.0.0.0", port=int(os.getenv("PORT", 8000)), reload=True)
