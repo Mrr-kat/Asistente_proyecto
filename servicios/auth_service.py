@@ -57,7 +57,6 @@ class AuthService:
         
         return None
     
-    # Modifica la función generar_codigo_recuperacion
     @staticmethod
     def generar_codigo_recuperacion(db: Session, usuario_o_correo: str):
         """Generar código de recuperación de contraseña"""
@@ -78,7 +77,7 @@ class AuthService:
         ).all()
         
         for codigo_ant in codigos_anteriores:
-            codigo_ant.utilizado = True  # Marcar como utilizado
+            codigo_ant.utilizado = True
         
         # Generar nuevo código de 5 dígitos
         codigo = ''.join(random.choices(string.digits, k=5))
@@ -101,10 +100,21 @@ class AuthService:
             print(f"Error al enviar correo: {e}")
             envio_exitoso = False
         
+        # Enmascarar correo para mostrar al usuario
+        correo_parts = usuario.correo.split('@')
+        if len(correo_parts) == 2:
+            username = correo_parts[0]
+            domain = correo_parts[1]
+            if len(username) > 2:
+                masked_email = f"{username[0]}***{username[-1]}@{domain}"
+            else:
+                masked_email = f"***@{domain}"
+        else:
+            masked_email = usuario.correo
+        
         return {
             "usuario": usuario.usuario,
-            "correo": usuario.correo,
-            "codigo": codigo if not envio_exitoso else None,  # Solo devolver en modo desarrollo
+            "correo": masked_email,  # Correo enmascarado
             "envio_exitoso": envio_exitoso
         }
     
@@ -157,8 +167,6 @@ class AuthService:
             # En Railway, a veces el email falla, pero mostramos el código
             return True  # Retornamos True para continuar el flujo
     
-    # Modifica SOLO estas funciones:
-
     @staticmethod
     def validar_codigo_recuperacion(db: Session, usuario_o_correo: str, codigo: str, marcar_como_utilizado: bool = True):
         """Validar código de recuperación (con opción de no marcarlo como usado)"""

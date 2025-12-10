@@ -246,6 +246,12 @@
         .resend-link:hover {
             text-decoration: underline;
         }
+        
+        @keyframes pulse {
+            0% { opacity: 1; }
+            50% { opacity: 0.5; }
+            100% { opacity: 1; }
+        }
     </style>
 </head>
 <body>
@@ -374,7 +380,6 @@
         </div>
     </div>
 
-<!-- Añade este script al final del archivo, antes del </body> -->
 <script>
 // Manejo completo de la recuperación
 document.addEventListener('DOMContentLoaded', function() {
@@ -392,6 +397,18 @@ document.addEventListener('DOMContentLoaded', function() {
     
     // Configurar navegación entre pasos
     setupNavigation();
+    
+    // Prellenar datos si están en la URL
+    if (step === 2 && urlParams.has('usuario')) {
+        const usuario = urlParams.get('usuario');
+        document.getElementById('usuario_correo_verificar').value = usuario;
+        startTimer(3600); // 1 hora
+    }
+    
+    if (step === 3 && urlParams.has('usuario') && urlParams.has('codigo')) {
+        document.getElementById('usuario_correo_cambiar').value = urlParams.get('usuario');
+        document.getElementById('codigo_cambiar').value = urlParams.get('codigo');
+    }
 });
 
 function goToStep(step) {
@@ -420,18 +437,6 @@ function goToStep(step) {
     const currentStep = document.getElementById(`step${step}-content`);
     if (currentStep) {
         currentStep.classList.add('active');
-        
-        // Prellenar datos si están en la URL
-        if (step === 2 && urlParams.has('usuario')) {
-            const usuario = urlParams.get('usuario');
-            document.getElementById('usuario_correo_verificar').value = usuario;
-            startTimer(3600); // 1 hora
-        }
-        
-        if (step === 3 && urlParams.has('usuario') && urlParams.has('codigo')) {
-            document.getElementById('usuario_correo_cambiar').value = urlParams.get('usuario');
-            document.getElementById('codigo_cambiar').value = urlParams.get('codigo');
-        }
     }
 }
 
@@ -489,7 +494,6 @@ function setupCodeInputs() {
     }
 }
 
-// Reemplaza la función setupResendCode con esta versión completa
 function setupResendCode() {
     const resendLink = document.getElementById('resend-code');
     if (!resendLink) return;
@@ -521,18 +525,10 @@ function setupResendCode() {
             const formData = new FormData();
             formData.append('usuario_correo', usuario);
             
-            const response = await fetch('/recuperacion/solicitar', {  // CAMBIADO: Usar endpoint existente
+            const response = await fetch('/recuperacion/solicitar', {
                 method: 'POST',
                 body: formData
             });
-            
-            // Manejar redirección
-            if (response.redirected) {
-                window.location.href = response.url;
-                return;
-            }
-            
-            const responseText = await response.text();
             
             if (response.ok) {
                 alert('✅ Código reenviado. Revisa tu correo electrónico.');
@@ -581,11 +577,6 @@ function setupResendCode() {
             }
         }, 1000);
     }
-    
-    // Iniciar cooldown si ya se envió un código
-    if (document.getElementById('usuario_correo_verificar').value) {
-        startResendCooldown();
-    }
 }
 
 function setupNavigation() {
@@ -602,6 +593,7 @@ function startTimer(duration) {
     let timer = duration;
     const display = document.getElementById('countdown');
     const verifyButton = document.querySelector('#verificar-form .btn-recovery');
+    const codeInputs = document.querySelectorAll('.code-input');
     
     if (!display) return;
     
@@ -644,7 +636,7 @@ function startTimer(duration) {
             }
             
             // Deshabilitar inputs de código
-            document.querySelectorAll('.code-input').forEach(input => {
+            codeInputs.forEach(input => {
                 input.disabled = true;
                 input.style.opacity = '0.5';
             });
