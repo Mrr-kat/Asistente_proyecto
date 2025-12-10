@@ -13,7 +13,7 @@
 - Estadísticas de uso en tiempo real
 - Comandos más populares
 - Distribución por hora y día
-- Reportes descargables en PDF/JSON
+- Reportes descargables en JSON
 
 ###  **Sistema de Autenticación**
 - Registro de usuarios
