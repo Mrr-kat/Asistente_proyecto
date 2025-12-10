@@ -54,9 +54,8 @@
 ###  **Comandos Disponibles**
 | Categoría | Comandos | Ejemplo | Descripción |
 |-----------|----------|---------|-------------|
-| ** Multimedia** | `reproduce [canción]` | `"reproduce Bohemian Rhapsody"` | Busca en YouTube |
+|  Multimedia | `reproduce [canción]` | `"reproduce Bohemian Rhapsody"` | Busca en YouTube |
 | | `busca en youtube [tema]` | `"busca en youtube tutorial Python"` | Búsqueda en YouTube |
-| ** Web** | `busca en google [consulta]` | `"busca en google IA"` | Búsqueda web |
-| | `abre [sitio]` | `"abre GitHub"` | Abre páginas web |
-| ** Utilidades** | `hora` | `"hora"` | Hora actual |
-| ** Info** | `dime sobre [tema]` | `"dime sobre Python"` | Consulta |
+|  Web | `busca en google [consulta]` | `"busca en google IA"` | Búsqueda web |
+|  Utilidades | `hora` | `"hora"` | Hora actual |
+|  Info | `dime sobre [tema]` | `"dime sobre Python"` | Consulta |
