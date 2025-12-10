@@ -231,6 +231,13 @@ async def solicitar_recuperacion(
     try:
         resultado = AuthService.generar_codigo_recuperacion(db, usuario_correo)
         
+        # Verificar si es una solicitud AJAX
+        if request.headers.get("x-requested-with") == "XMLHttpRequest":
+            return JSONResponse({
+                "success": True,
+                "message": f"Código enviado a {resultado['correo']}"
+            })
+        
         # Redirigir al paso 2
         return RedirectResponse(
             url=f"/recuperacion?usuario={usuario_correo}&step=2&info=Código enviado a {resultado['correo']}",
@@ -238,11 +245,23 @@ async def solicitar_recuperacion(
         )
         
     except ValueError as e:
+        if request.headers.get("x-requested-with") == "XMLHttpRequest":
+            return JSONResponse({
+                "success": False,
+                "error": str(e)
+            }, status_code=400)
+        
         return templates.TemplateResponse("login/recuperacion.html", {
             "request": request,
             "error": str(e)
         })
     except Exception as e:
+        if request.headers.get("x-requested-with") == "XMLHttpRequest":
+            return JSONResponse({
+                "success": False,
+                "error": f"Error al solicitar recuperación: {str(e)}"
+            }, status_code=500)
+        
         return templates.TemplateResponse("login/recuperacion.html", {
             "request": request,
             "error": f"Error al solicitar recuperación: {str(e)}"
@@ -254,7 +273,7 @@ async def verificar_codigo_recuperacion(
     usuario_correo: str = Form(...),
     codigo: str = Form(...),
     db: Session = Depends(get_db)
-):
+ ):
     """Verificar código de recuperación"""
     try:
         usuario_id = AuthService.validar_codigo_recuperacion(db, usuario_correo, codigo, marcar_como_utilizado=False)
@@ -288,7 +307,7 @@ async def cambiar_contraseña_recuperacion(
     nueva_contraseña: str = Form(...),
     confirmar_nueva_contraseña: str = Form(...),
     db: Session = Depends(get_db)
-):
+ ):
     """Cambiar contraseña después de verificación"""
     try:
         # Validar que las contraseñas coincidan
@@ -338,6 +357,32 @@ async def cambiar_contraseña_recuperacion(
             "codigo": codigo,
             "step": 3
         })
+
+@app.post("/recuperacion/reenviar")
+async def reenviar_codigo_recuperacion(
+    request: Request,
+    usuario_correo: str = Form(...),
+    db: Session = Depends(get_db)
+ ):
+    """Reenviar código de recuperación"""
+    try:
+        resultado = AuthService.generar_codigo_recuperacion(db, usuario_correo)
+        
+        return JSONResponse({
+            "success": True,
+            "message": f"Código reenviado a {resultado['correo']}"
+        })
+        
+    except ValueError as e:
+        return JSONResponse({
+            "success": False,
+            "error": str(e)
+        }, status_code=400)
+    except Exception as e:
+        return JSONResponse({
+            "success": False,
+            "error": f"Error al reenviar código: {str(e)}"
+        }, status_code=500)
 
 @app.get("/logout")
 async def cerrar_sesion():

@@ -521,14 +521,20 @@ function setupResendCode() {
             const formData = new FormData();
             formData.append('usuario_correo', usuario);
             
-            const response = await fetch('/recuperacion/reenviar', {
+            const response = await fetch('/recuperacion/solicitar', {  // CAMBIADO: Usar endpoint existente
                 method: 'POST',
                 body: formData
             });
             
-            const data = await response.json();
+            // Manejar redirección
+            if (response.redirected) {
+                window.location.href = response.url;
+                return;
+            }
             
-            if (response.ok && data.success) {
+            const responseText = await response.text();
+            
+            if (response.ok) {
                 alert('✅ Código reenviado. Revisa tu correo electrónico.');
                 
                 // Reiniciar temporizador principal
@@ -544,7 +550,7 @@ function setupResendCode() {
                 startResendCooldown();
                 
             } else {
-                alert('❌ Error: ' + (data.error || 'No se pudo reenviar el código'));
+                alert('❌ Error al reenviar el código');
             }
             
         } catch (error) {
@@ -569,7 +575,7 @@ function setupResendCode() {
             
             if (secondsLeft < 0) {
                 clearInterval(cooldownInterval);
-                resendLink.textContent = originalText;
+                resendLink.textContent = 'Reenviar código';
                 resendLink.style.opacity = '1';
                 canResend = true;
             }
