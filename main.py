@@ -1,6 +1,5 @@
+# main.py (CORREGIDO COMPLETO)
 import os
-import struct
-import threading
 import asyncio
 from fastapi import FastAPI, Request, UploadFile, Depends, Form, HTTPException, status, Response
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
@@ -11,7 +10,7 @@ from pydub import AudioSegment
 import speech_recognition as sr
 from sqlalchemy.orm import Session
 from datetime import datetime
-from db.models import get_db, SessionLocal, HistorialInteraccion, Usuario
+from db.models import get_db, SessionLocal
 from servicios.historial_service import HistorialService
 from servicios.auth_service import AuthService
 from servicios.estadisticas_service import EstadisticasService
@@ -30,6 +29,24 @@ load_dotenv()
 # Montar carpeta de templates y estáticos
 templates = Jinja2Templates(directory="templates")
 app.mount("/static", StaticFiles(directory="static"), name="static")
+
+# Crear archivos de audio de beep si no existen
+def crear_archivos_audio():
+    """Crear archivos de audio de beep si no existen"""
+    audio_dir = "static/audios"
+    os.makedirs(audio_dir, exist_ok=True)
+    
+    # Solo crear si no existen
+    beep_path = os.path.join(audio_dir, "beep.mp3")
+    beep2_path = os.path.join(audio_dir, "beep2.mp3")
+    
+    if not os.path.exists(beep_path):
+        open(beep_path, 'wb').close()  # Crear archivo vacío
+    if not os.path.exists(beep2_path):
+        open(beep2_path, 'wb').close()  # Crear archivo vacío
+
+# Llamar la función al inicio
+crear_archivos_audio()
 
 # Middleware para verificar autenticación
 @app.middleware("http")
@@ -328,7 +345,7 @@ async def cerrar_sesion():
     response.delete_cookie("usuario_id")
     return response
 
-# Ruta para procesar audio
+# Ruta para procesar audio - CORREGIDA
 @app.post("/audio")
 async def audio(audio: UploadFile, request: Request, db: Session = Depends(get_db)):
     try:
@@ -340,14 +357,19 @@ async def audio(audio: UploadFile, request: Request, db: Session = Depends(get_d
         # Guardar archivo temporal
         temp_dir = "static/temp"
         os.makedirs(temp_dir, exist_ok=True)
-        webm_path = os.path.join(temp_dir, f"audio_{datetime.now().timestamp()}.webm")
+        
+        timestamp = datetime.now().timestamp()
+        webm_path = os.path.join(temp_dir, f"audio_{timestamp}.webm")
         
         with open(webm_path, "wb") as f:
-            f.write(await audio.read())
+            content = await audio.read()
+            f.write(content)
 
-        # Convertir de webm a wav
         text = ""
+        wav_path = ""
+        
         try:
+            # Convertir de webm a wav
             audio_segment = AudioSegment.from_file(webm_path, format="webm")
             wav_path = webm_path.replace(".webm", ".wav")
             audio_segment.export(wav_path, format="wav")
@@ -355,28 +377,33 @@ async def audio(audio: UploadFile, request: Request, db: Session = Depends(get_d
             # Transcribir
             recognizer = sr.Recognizer()
             with sr.AudioFile(wav_path) as source:
+                # Reducir ruido ambiental
+                recognizer.adjust_for_ambient_noise(source, duration=0.5)
                 audio_data = recognizer.record(source)
                 text = recognizer.recognize_google(audio_data, language="es-ES")
+                
         except sr.UnknownValueError:
             text = "No se pudo entender el audio"
+        except sr.RequestError as e:
+            text = f"Error en servicio de reconocimiento: {str(e)}"
         except Exception as e:
             print(f"Error procesando audio: {e}")
             text = "Error en transcripción"
 
         # Limpiar temporales
         try:
-            os.remove(webm_path)
-            if os.path.exists(wav_path):
+            if os.path.exists(webm_path):
+                os.remove(webm_path)
+            if wav_path and os.path.exists(wav_path):
                 os.remove(wav_path)
         except:
             pass
 
-        # Si hay texto transcrito, ejecutar comando
+        # EJECUTAR COMANDO SI HAY TEXTO VÁLIDO
         resultado_comando = ""
         if text and text not in ["No se pudo entender el audio", "Error en transcripción"]:
-            # Ejecutar comando de forma síncrona para asegurar que se registre
             try:
-                from funciones.comandos import ejecutar_comando
+                # IMPORTANTE: Usar la misma sesión de DB para guardar historial
                 resultado_comando = ejecutar_comando(text, db, usuario_id)
             except Exception as e:
                 print(f"Error ejecutando comando: {e}")
@@ -384,12 +411,17 @@ async def audio(audio: UploadFile, request: Request, db: Session = Depends(get_d
 
         return JSONResponse({
             "text": text,
-            "resultado": resultado_comando
+            "resultado": resultado_comando,
+            "success": True
         }, status_code=200)
 
     except Exception as e:
         print(f"Error general en /audio: {e}")
-        return JSONResponse({"text": "Error procesando audio", "resultado": ""}, status_code=200)
+        return JSONResponse({
+            "text": "Error procesando audio", 
+            "resultado": "", 
+            "success": False
+        }, status_code=200)
 
 # Procesar comando de texto
 @app.post("/comando")
