@@ -169,36 +169,89 @@ async function procesarComandoTexto(texto) {
 // Agregar input de texto para comandos
 function agregarInputComando() {
     const asistenteContainer = document.querySelector(".asistente-container");
+    if (!asistenteContainer) return;
+    
+    // Verificar si ya existe
+    if (document.getElementById("input-comando-container")) return;
     
     const inputContainer = document.createElement("div");
-    inputContainer.className = "input-comando-container";
+    inputContainer.id = "input-comando-container";
+    inputContainer.style.cssText = `
+        width: 100%;
+        max-width: 500px;
+        margin: 20px auto;
+        display: flex;
+        gap: 10px;
+    `;
+    
     inputContainer.innerHTML = `
         <input type="text" id="input-comando" placeholder="Escribe tu comando aquí..." 
-               style="width: 100%; padding: 10px; margin: 10px 0; border-radius: 5px;">
+               style="flex: 1; padding: 12px; border: 2px solid #4CAF50; border-radius: 8px; font-size: 16px;">
         <button id="btn-ejecutar-comando" 
-                style="padding: 10px 20px; background: #4CAF50; color: white; border: none; border-radius: 5px;">
-            Ejecutar Comando
+                style="padding: 12px 24px; background: #4CAF50; color: white; border: none; border-radius: 8px; cursor: pointer; font-size: 16px;">
+            Ejecutar
         </button>
     `;
     
     asistenteContainer.appendChild(inputContainer);
     
-    document.getElementById("btn-ejecutar-comando").addEventListener("click", () => {
-        const texto = document.getElementById("input-comando").value;
+    document.getElementById("btn-ejecutar-comando").addEventListener("click", async () => {
+        const texto = document.getElementById("input-comando").value.trim();
         if (texto) {
-            procesarComandoTexto(texto);
+            await procesarComandoTexto(texto);
+            document.getElementById("input-comando").value = "";
         }
     });
     
-    document.getElementById("input-comando").addEventListener("keypress", (e) => {
+    document.getElementById("input-comando").addEventListener("keypress", async (e) => {
         if (e.key === "Enter") {
-            const texto = document.getElementById("input-comando").value;
+            const texto = document.getElementById("input-comando").value.trim();
             if (texto) {
-                procesarComandoTexto(texto);
+                await procesarComandoTexto(texto);
+                document.getElementById("input-comando").value = "";
             }
         }
     });
 }
+
+// Función procesarComandoTexto (CORREGIR):
+async function procesarComandoTexto(texto) {
+    try {
+        transcripcionDiv.textContent = `Procesando comando: "${texto}"...`;
+        
+        const response = await fetch("/comando", {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+            },
+            body: JSON.stringify({ texto: texto })
+        });
+        
+        const resultado = await response.json();
+        
+        if (resultado.exito) {
+            transcripcionDiv.textContent = `✅ ${resultado.resultado}`;
+            
+            if (resultado.url) {
+                // Abrir en nueva pestaña después de un breve delay
+                setTimeout(() => {
+                    window.open(resultado.url, '_blank');
+                }, 500);
+            }
+        } else {
+            transcripcionDiv.textContent = `❌ ${resultado.resultado}`;
+        }
+        
+    } catch (error) {
+        console.error("Error procesando comando:", error);
+        transcripcionDiv.textContent = "❌ Error procesando comando";
+    }
+}
+
+// Llamar después de cargar la página
+document.addEventListener("DOMContentLoaded", () => {
+    setTimeout(agregarInputComando, 1000); // Esperar a que cargue todo
+});
 
 // Llamar después de cargar la página
 document.addEventListener("DOMContentLoaded", agregarInputComando);

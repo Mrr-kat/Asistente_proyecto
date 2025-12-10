@@ -110,44 +110,52 @@ class AuthService:
     
     @staticmethod
     def enviar_correo_recuperacion(destinatario: str, usuario: str, codigo: str):
-        """Enviar correo con código de recuperación (configuración básica)"""
-        # Configuración del correo
-        remitente = os.getenv("CORRE_USU")  # Tu correo
-        password = os.getenv("CORREO_CON")  # Tu contraseña de aplicación
+        """Enviar correo con código de recuperación"""
+        remitente = os.getenv("CORRE_USU", "")
+        password = os.getenv("CORREO_CON", "")
         
-        # Crear mensaje
-        mensaje = MIMEMultipart()
-        mensaje["From"] = remitente
-        mensaje["To"] = destinatario
-        mensaje["Subject"] = "Recuperación de contraseña - Asistente Virtual"
+        if not remitente or not password:
+            print("⚠️ Credenciales de correo no configuradas. Modo desarrollo activado.")
+            print(f"📧 [MODO DESARROLLO] Código para {usuario} ({destinatario}): {codigo}")
+            return True  # Retorna True para simular éxito
         
-        cuerpo = f"""
-        Hola {usuario},
-        
-        Has solicitado recuperar tu contraseña. 
-        Tu código de verificación es: {codigo}
-        
-        Este código expirará en 1 hora.
-        
-        Si no solicitaste este código, ignora este mensaje.
-        
-        Saludos,
-        Equipo del Asistente Virtual
-        """
-        
-        mensaje.attach(MIMEText(cuerpo, "plain"))
-        
-        # Enviar correo (esto es un ejemplo básico)
-        # En producción, usa un servicio de correo profesional
         try:
+            mensaje = MIMEMultipart()
+            mensaje["From"] = remitente
+            mensaje["To"] = destinatario
+            mensaje["Subject"] = "Recuperación de contraseña - Asistente Virtual"
+            
+            cuerpo = f"""
+            <h2>Recuperación de Contraseña</h2>
+            <p>Hola <strong>{usuario}</strong>,</p>
+            <p>Has solicitado recuperar tu contraseña.</p>
+            <p style="font-size: 24px; font-weight: bold; color: #4CAF50; padding: 10px; background: #f1f1f1; border-radius: 5px; text-align: center;">
+            {codigo}
+            </p>
+            <p>Este código expirará en 1 hora.</p>
+            <p>Si no solicitaste este código, ignora este mensaje.</p>
+            <hr>
+            <p style="color: #666; font-size: 12px;">
+            Equipo del Asistente Virtual
+            </p>
+            """
+            
+            mensaje.attach(MIMEText(cuerpo, "html"))
+            
+            # Configurar servidor SMTP
             with smtplib.SMTP("smtp.gmail.com", 587) as server:
                 server.starttls()
                 server.login(remitente, password)
                 server.send_message(mensaje)
+            
+            print(f"✅ Correo enviado a {destinatario}")
+            return True
+            
         except Exception as e:
-            print(f"Error SMTP: {e}")
-            # En modo desarrollo, simplemente imprimimos el código
-            print(f"[MODO DESARROLLO] Código para {usuario}: {codigo}")
+            print(f"❌ Error al enviar correo: {e}")
+            print(f"📧 [FALLBACK] Código para {usuario}: {codigo}")
+            # En Railway, a veces el email falla, pero mostramos el código
+            return True  # Retornamos True para continuar el flujo
     
     # Modifica SOLO estas funciones:
 

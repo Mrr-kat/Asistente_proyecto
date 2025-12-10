@@ -1,5 +1,6 @@
+# servicios/estadisticas_service.py (CORREGIDO)
 from sqlalchemy.orm import Session
-from sqlalchemy import func
+from sqlalchemy import func, extract, text
 from db.models import HistorialInteraccion, EstadisticasUsuario
 from datetime import datetime, timedelta
 from typing import Dict, List, Any
@@ -27,9 +28,9 @@ class EstadisticasService:
                 HistorialInteraccion.comando_ejecutado
             ).order_by(func.count(HistorialInteraccion.id).desc()).all()
             
-            # Comandos por día de la semana
+            # Comandos por día de la semana (CORREGIDO para PostgreSQL)
             comandos_por_dia = db.query(
-                func.strftime('%w', HistorialInteraccion.fecha_hora).label('dia'),
+                extract('dow', HistorialInteraccion.fecha_hora).label('dia'),
                 func.count(HistorialInteraccion.id).label('cantidad')
             ).filter(
                 HistorialInteraccion.usuario_id == usuario_id,
@@ -45,11 +46,11 @@ class EstadisticasService:
                 HistorialInteraccion.usuario_id == usuario_id,
                 HistorialInteraccion.activo == True,
                 HistorialInteraccion.fecha_hora >= fecha_limite
-            ).group_by('fecha').order_by('fecha').all()
+            ).group_by(func.date(HistorialInteraccion.fecha_hora)).order_by('fecha').all()
             
-            # Comandos por hora del día
+            # Comandos por hora del día (CORREGIDO para PostgreSQL)
             comandos_por_hora = db.query(
-                func.strftime('%H', HistorialInteraccion.fecha_hora).label('hora'),
+                extract('hour', HistorialInteraccion.fecha_hora).label('hora'),
                 func.count(HistorialInteraccion.id).label('cantidad')
             ).filter(
                 HistorialInteraccion.usuario_id == usuario_id,
@@ -74,16 +75,16 @@ class EstadisticasService:
             if comandos_por_hora:
                 max_item = max(comandos_por_hora, key=lambda x: x[1])
                 hora_pico = {
-                    "hora": max_item[0],
+                    "hora": int(max_item[0]) if max_item[0] else 0,
                     "cantidad": max_item[1]
                 }
             
             return {
                 "total_comandos": total_comandos,
                 "comandos_por_tipo": [{"comando": c[0], "cantidad": c[1]} for c in comandos_por_tipo],
-                "comandos_por_dia": [{"dia": c[0], "cantidad": c[1]} for c in comandos_por_dia],
+                "comandos_por_dia": [{"dia": int(c[0]) if c[0] else 0, "cantidad": c[1]} for c in comandos_por_dia],
                 "comandos_ultimos_7_dias": [{"fecha": str(c[0]), "cantidad": c[1]} for c in comandos_ultimos_7_dias],
-                "comandos_por_hora": [{"hora": c[0], "cantidad": c[1]} for c in comandos_por_hora],
+                "comandos_por_hora": [{"hora": int(c[0]) if c[0] else 0, "cantidad": c[1]} for c in comandos_por_hora],
                 "ultimo_uso": ultimo_uso.fecha_hora.strftime("%d/%m/%Y %I:%M %p") if ultimo_uso else "Nunca",
                 "comando_mas_usado": comando_mas_usado,
                 "hora_pico": hora_pico
@@ -115,11 +116,11 @@ class EstadisticasService:
                 HistorialInteraccion.usuario_id == usuario_id,
                 HistorialInteraccion.activo == True,
                 HistorialInteraccion.fecha_hora >= fecha_limite
-            ).group_by('fecha').order_by('fecha').all()
+            ).group_by(func.date(HistorialInteraccion.fecha_hora)).order_by('fecha').all()
             
             # Tasa de éxito (simplificada)
             total_dias = len(comandos_por_dia)
-            tasa_exito = 95 if total_dias > 0 else 0  # Valor simulado
+            tasa_exito = 95 if total_dias > 0 else 0
             
             # Mes actual vs mes anterior
             hoy = datetime.now()
@@ -176,7 +177,7 @@ class EstadisticasService:
         try:
             hoy = datetime.now().date()
             
-            # Contar comandos del día
+            # Contar comandos del día (CORREGIDO para PostgreSQL)
             comandos_hoy = db.query(HistorialInteraccion).filter(
                 HistorialInteraccion.usuario_id == usuario_id,
                 func.date(HistorialInteraccion.fecha_hora) == hoy

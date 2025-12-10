@@ -345,58 +345,51 @@ async def audio(audio: UploadFile, request: Request, db: Session = Depends(get_d
         with open(webm_path, "wb") as f:
             f.write(await audio.read())
 
-        # Convertir de webm a wav usando pydub
+        # Convertir de webm a wav
+        text = ""
         try:
             audio_segment = AudioSegment.from_file(webm_path, format="webm")
             wav_path = webm_path.replace(".webm", ".wav")
             audio_segment.export(wav_path, format="wav")
-        except Exception as e:
-            # Fallback: intentar procesar directamente
-            print(f"Error al convertir audio: {e}")
-            wav_path = webm_path
-
-        # Transcribir
-        recognizer = sr.Recognizer()
-        try:
+            
+            # Transcribir
+            recognizer = sr.Recognizer()
             with sr.AudioFile(wav_path) as source:
                 audio_data = recognizer.record(source)
-            text = recognizer.recognize_google(audio_data, language="es-ES")
+                text = recognizer.recognize_google(audio_data, language="es-ES")
         except sr.UnknownValueError:
             text = "No se pudo entender el audio"
         except Exception as e:
-            print(f"Error en reconocimiento: {e}")
-            text = "No se pudo transcribir el audio"
+            print(f"Error procesando audio: {e}")
+            text = "Error en transcripción"
 
         # Limpiar temporales
         try:
             os.remove(webm_path)
-            if os.path.exists(wav_path) and wav_path != webm_path:
+            if os.path.exists(wav_path):
                 os.remove(wav_path)
         except:
             pass
 
-        # Ejecutar comando si se transcribió
-        if text and text != "No se pudo transcribir el audio" and text != "No se pudo entender el audio":
-            # Ejecutar en segundo plano
-            def ejecutar_en_segundo_plano():
-                try:
-                    db_local = SessionLocal()
-                    try:
-                        ejecutar_comando(text, db_local, usuario_id)
-                    finally:
-                        db_local.close()
-                except Exception as e:
-                    print(f"Error ejecutando comando: {e}")
+        # Si hay texto transcrito, ejecutar comando
+        resultado_comando = ""
+        if text and text not in ["No se pudo entender el audio", "Error en transcripción"]:
+            # Ejecutar comando de forma síncrona para asegurar que se registre
+            try:
+                from funciones.comandos import ejecutar_comando
+                resultado_comando = ejecutar_comando(text, db, usuario_id)
+            except Exception as e:
+                print(f"Error ejecutando comando: {e}")
+                resultado_comando = f"Error: {str(e)}"
 
-            # Usar threading para no bloquear
-            thread = threading.Thread(target=ejecutar_en_segundo_plano, daemon=True)
-            thread.start()
-
-        return JSONResponse({"text": text}, status_code=200)
+        return JSONResponse({
+            "text": text,
+            "resultado": resultado_comando
+        }, status_code=200)
 
     except Exception as e:
         print(f"Error general en /audio: {e}")
-        return JSONResponse({"text": "Error procesando audio"}, status_code=200)
+        return JSONResponse({"text": "Error procesando audio", "resultado": ""}, status_code=200)
 
 # Procesar comando de texto
 @app.post("/comando")
