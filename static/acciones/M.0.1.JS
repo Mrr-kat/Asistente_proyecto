@@ -48,8 +48,6 @@ async function iniciarGrabacion() {
     }
     
     // Limpiar transcripción anterior
-    transcripcionDiv.textContent = "🎤 Grabando... Habla ahora";
-    transcripcionDiv.style.color = "#f44336";
     
     const stream = await navigator.mediaDevices.getUserMedia({ 
       audio: {
@@ -109,8 +107,7 @@ async function iniciarGrabacion() {
     
   } catch (error) {
     console.error("Error al acceder al micrófono:", error);
-    transcripcionDiv.textContent = "❌ Error al acceder al micrófono. Verifica los permisos.";
-    transcripcionDiv.style.color = "#f44336";
+    transcripcionDiv.textContent = "Error al acceder al micrófono. Verifica los permisos.";
   }
 }
 
@@ -143,8 +140,6 @@ function detenerGrabacion() {
       mediaRecorder.stream.getTracks().forEach(track => track.stop());
     }
     
-    transcripcionDiv.textContent = "⏳ Procesando audio...";
-    transcripcionDiv.style.color = "#ff9800";
   }
 }
 
@@ -152,8 +147,7 @@ function detenerGrabacion() {
 async function procesarAudio() {
   try {
     if (chunks.length === 0) {
-      transcripcionDiv.textContent = "❌ No se grabó audio. Intenta nuevamente.";
-      transcripcionDiv.style.color = "#f44336";
+      transcripcionDiv.textContent = "No se grabó audio. Intenta nuevamente.";
       return;
     }
     
@@ -176,17 +170,16 @@ async function procesarAudio() {
       // Mostrar texto transcrito
       if (result.resultado) {
         transcripcionDiv.innerHTML = `
-          <div style="margin-bottom: 10px;">
-            <strong>🗣️ Dijiste:</strong> ${result.text}
+          <div>
+            <strong>Dijiste:</strong> ${result.text}
           </div>
-          <div style="color: #4CAF50;">
-            <strong>🤖 Asistente:</strong> ${result.resultado}
+          <div>
+            <strong>Asistente:</strong> ${result.resultado}
           </div>
         `;
       } else {
-        transcripcionDiv.textContent = `🗣️ Dijiste: ${result.text}`;
+        transcripcionDiv.textContent = `Dijiste: ${result.text}`;
       }
-      transcripcionDiv.style.color = "#333";
       
       // Si hay un comando que genera URL, abrirla después de 1 segundo
       if (result.resultado && result.resultado.includes("YouTube") || 
@@ -211,13 +204,11 @@ async function procesarAudio() {
       }
       
     } else {
-      transcripcionDiv.textContent = `❌ ${result.text || "Error en la transcripción"}`;
-      transcripcionDiv.style.color = "#f44336";
+      transcripcionDiv.textContent = ` ${result.text || "Error en la transcripción"}`;
     }
   } catch (error) {
     console.error("Error procesando audio:", error);
-    transcripcionDiv.textContent = "❌ Error al enviar el audio al servidor.";
-    transcripcionDiv.style.color = "#f44336";
+    transcripcionDiv.textContent = "Error al enviar el audio al servidor.";
   }
 }
 
@@ -231,55 +222,7 @@ function reiniciarTemporizadorSilencio() {
   }, tiempoSilencio);
 }
 
-// Función para procesar comando de texto
-async function procesarComandoTexto(texto) {
-  try {
-    if (!texto.trim()) {
-      transcripcionDiv.textContent = "❌ Por favor escribe un comando";
-      transcripcionDiv.style.color = "#f44336";
-      return;
-    }
-    
-    transcripcionDiv.textContent = `⏳ Procesando: "${texto}"...`;
-    transcripcionDiv.style.color = "#ff9800";
-    
-    const response = await fetch("/comando", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({ texto: texto })
-    });
-    
-    const resultado = await response.json();
-    
-    if (resultado.exito) {
-      transcripcionDiv.innerHTML = `
-        <div style="margin-bottom: 10px;">
-          <strong>📝 Comando:</strong> ${texto}
-        </div>
-        <div style="color: #4CAF50;">
-          <strong>✅ Resultado:</strong> ${resultado.resultado}
-        </div>
-      `;
-      transcripcionDiv.style.color = "#333";
-      
-      if (resultado.url) {
-        setTimeout(() => {
-          window.open(resultado.url, '_blank');
-        }, 500);
-      }
-    } else {
-      transcripcionDiv.textContent = `❌ ${resultado.resultado}`;
-      transcripcionDiv.style.color = "#f44336";
-    }
-    
-  } catch (error) {
-    console.error("Error procesando comando:", error);
-    transcripcionDiv.textContent = "❌ Error de conexión al procesar comando";
-    transcripcionDiv.style.color = "#f44336";
-  }
-}
+
 
 // Agregar input de texto para comandos
 function agregarInputComando() {
@@ -355,14 +298,6 @@ document.addEventListener("DOMContentLoaded", () => {
   setTimeout(agregarInputComando, 1000);
   
   // Configurar estilo inicial de transcripción
-  if (transcripcionDiv) {
-    transcripcionDiv.style.minHeight = "120px";
-    transcripcionDiv.style.padding = "20px";
-    transcripcionDiv.style.borderRadius = "10px";
-    transcripcionDiv.style.backgroundColor = "#f9f9f9";
-    transcripcionDiv.style.border = "2px solid #e0e0e0";
-    transcripcionDiv.textContent = "👆 Presiona el botón del micrófono para hablar o escribe tu comando abajo";
-  }
 });
 
 // Manejar el evento de WebSocket para detener grabación desde servidor
