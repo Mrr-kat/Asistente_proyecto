@@ -16,7 +16,8 @@ WORKDIR /app
 # 3. Variables de entorno
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
-    PIP_NO_CACHE_DIR=1
+    PIP_NO_CACHE_DIR=1 \
+    PORT=8000
 
 # 4. Copiar requirements primero (para caché)
 COPY requirements.txt .
@@ -33,7 +34,7 @@ RUN useradd -m -u 1000 appuser && chown -R appuser:appuser /app
 USER appuser
 
 # 8. Exponer puerto
-EXPOSE 8000
+EXPOSE $PORT
 
-# 9. Comando de inicio
-CMD ["python", "-m", "uvicorn", "main:app_mount", "--host", "0.0.0.0", "--port", "8000"]
+# 9. Comando de inicio - USAR SHELL FORM PARA EXPANDIR VARIABLES
+CMD uvicorn main:app_mount --host 0.0.0.0 --port ${PORT}
