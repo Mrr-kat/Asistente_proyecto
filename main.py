@@ -1,6 +1,6 @@
 import os
-import pvporcupine
-import pyaudio
+#import pvporcupine
+#import pyaudio
 import struct
 import threading
 import asyncio
@@ -18,11 +18,21 @@ from servicios.historial_service import HistorialService
 from servicios.auth_service import AuthService
 from servicios.estadisticas_service import EstadisticasService
 from funciones.comandos import ejecutar_comando
+from dotenv import load_dotenv
 
 
 # Configuración de FastAPI
 app = FastAPI()
 sio = socketio.AsyncServer(async_mode="asgi", cors_allowed_origins="*")
+
+# Cargar variables de entorno
+load_dotenv()
+
+# Configuración para Railway
+DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///asistente_virtual.db")
+if DATABASE_URL.startswith("postgresql"):
+    # Configurar para PostgreSQL
+    DATABASE_URL = DATABASE_URL.replace("postgresql", "postgresql+asyncpg", 1)
 
 # Montar carpeta de templates y estáticos
 templates = Jinja2Templates(directory="templates")
@@ -358,6 +368,7 @@ async def cerrar_sesion():
     return response
 
 # Ruta para procesar audio (actualizada para usar usuario_id)
+# Modificar la función de procesamiento de audio
 @app.post("/audio")
 async def audio(audio: UploadFile, request: Request, db: Session = Depends(get_db)):
     try:
@@ -366,50 +377,95 @@ async def audio(audio: UploadFile, request: Request, db: Session = Depends(get_d
 
         usuario_id = request.state.usuario_id
         
-        webm_path = os.path.join("static", "temp", "audio.webm")
-        wav_path = os.path.join("static", "temp", "audio.wav")
-
-        # Guardar archivo
+        # Guardar archivo temporal
+        temp_dir = "static/temp"
+        os.makedirs(temp_dir, exist_ok=True)
+        webm_path = os.path.join(temp_dir, f"audio_{datetime.now().timestamp()}.webm")
+        
         with open(webm_path, "wb") as f:
             f.write(await audio.read())
 
-        # Convertir de webm a wav
+        # Convertir de webm a wav usando pydub
         try:
             audio_segment = AudioSegment.from_file(webm_path, format="webm")
+            wav_path = webm_path.replace(".webm", ".wav")
             audio_segment.export(wav_path, format="wav")
         except Exception as e:
-            return JSONResponse({"error": f"Error al convertir el audio: {str(e)}"}, status_code=500)
+            # Fallback: intentar procesar directamente
+            print(f"Error al convertir audio: {e}")
+            wav_path = webm_path
 
         # Transcribir
         recognizer = sr.Recognizer()
-        with sr.AudioFile(wav_path) as source:
-            audio_data = recognizer.record(source)
+        try:
+            with sr.AudioFile(wav_path) as source:
+                audio_data = recognizer.record(source)
+            text = recognizer.recognize_google(audio_data, language="es-ES")
+        except Exception as e:
+            print(f"Error en reconocimiento: {e}")
+            text = "No se pudo transcribir el audio"
 
         # Limpiar temporales
-        os.remove(webm_path)
-        os.remove(wav_path)
-        text = recognizer.recognize_google(audio_data, language="es-ES")
-        
-        # Ejecutar comando en un thread separado, pero necesitamos crear nueva sesión
-        def ejecutar_comando_con_db():
-            from db.models import get_db
-            from funciones.comandos import ejecutar_comando
-            db_local = next(get_db())
-            try:
-                ejecutar_comando(text, db_local, usuario_id)
-            except Exception as e:
-                print(f"Error ejecutando comando en thread: {e}")
-            finally:
-                db_local.close()
-        
-        threading.Thread(target=ejecutar_comando_con_db).start()
+        try:
+            os.remove(webm_path)
+            if os.path.exists(wav_path) and wav_path != webm_path:
+                os.remove(wav_path)
+        except:
+            pass
+
+        # Ejecutar comando
+        if text != "No se pudo transcribir el audio":
+            # Usar ejecución asíncrona sin hilos
+            def ejecutar_comando_con_db():
+                try:
+                    from funciones.comandos import ejecutar_comando
+                    # Crear nueva sesión
+                    db_local = SessionLocal()
+                    try:
+                        ejecutar_comando(text, db_local, usuario_id)
+                    finally:
+                        db_local.close()
+                except Exception as e:
+                    print(f"Error ejecutando comando: {e}")
+
+            # Usar asyncio para ejecución en segundo plano
+            import asyncio
+            asyncio.create_task(asyncio.to_thread(ejecutar_comando_con_db))
 
         return JSONResponse({"text": text}, status_code=200)
 
     except sr.UnknownValueError:
         return JSONResponse({"error": "No se pudo entender el audio."}, status_code=400)
     except Exception as e:
+        print(f"Error general en /audio: {e}")
+        return JSONResponse({"text": "Error procesando audio"}, status_code=200)
+
+
+# Agregar este endpoint después de /audio
+@app.post("/comando")
+async def procesar_comando(request: Request, db: Session = Depends(get_db)):
+    """Procesar comando de texto (para modo web)"""
+    try:
+        data = await request.json()
+        texto = data.get("texto", "").strip()
+        usuario_id = request.state.usuario_id
+        
+        if not texto:
+            return JSONResponse({"error": "Texto vacío"}, status_code=400)
+        
+        from funciones.comandos_web import ejecutar_comando_web
+        resultado = ejecutar_comando_web(texto, db, usuario_id)
+        
+        return JSONResponse(resultado, status_code=200)
+        
+    except Exception as e:
         return JSONResponse({"error": str(e)}, status_code=500)
+
+# Endpoint para probar
+@app.get("/health")
+async def health_check():
+    return {"status": "ok", "timestamp": datetime.now().isoformat()}
+
 
 # Rutas para el historial (actualizadas para usar usuario_id)
 @app.get("/historial")
@@ -552,24 +608,9 @@ async def detener_grabacion(sid, data=None):
 
 # Escucha pasiva de palabra clave
 def escucha_pasiva():
-    global grabando, detener
-    print("Escuchando palabra clave...")
-    try:
-        while not detener:
-            pcm = audio_stream.read(porcupine.frame_length, exception_on_overflow=False)
-            pcm = struct.unpack_from("h" * porcupine.frame_length, pcm)
-            result = porcupine.process(pcm)
-
-            if result >= 0 and not grabando:
-                print("¡Palabra clave detectada!")
-                loop = asyncio.new_event_loop()
-                asyncio.set_event_loop(loop)
-                loop.run_until_complete(iniciar_grabacion())
-
-    except KeyboardInterrupt:
-        print("\nInterrumpido manualmente.")
-    finally:
-        liberar_recursos()
+    """Función simplificada para Railway (sin detección por voz)"""
+    print("Modo web: Detección por voz desactivada. Usa el botón del micrófono.")
+    return
 
 # Liberar recursos
 def liberar_recursos():

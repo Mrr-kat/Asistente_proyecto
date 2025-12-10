@@ -1,26 +1,27 @@
-# FastAPI y dependencias principales
+# Dependencias compatibles con Railway
 fastapi==0.104.1
 uvicorn[standard]==0.24.0
 python-multipart==0.0.6
 
-# Base de datos
+# Base de datos (usaremos PostgreSQL en Railway)
 sqlalchemy==2.0.23
+psycopg2-binary==2.9.9  # Para PostgreSQL
+asyncpg==0.29.0
 
 # WebSockets
 python-socketio==5.10.0
 aiohttp==3.9.1
 websockets==12.0
 
-# Procesamiento de audio (sin PyAudio)
+# Procesamiento de audio (versiones compatibles)
 pydub==0.25.1
-speechrecognition==3.10.0
+SpeechRecognition==3.10.0
 
-# Síntesis de voz SIN pywin32
+# Síntesis de voz (opcional, compatible)
 pyttsx3==2.90
 
 # Navegación y web
 pywhatkit==5.4
-psutil==5.9.7
 
 # Búsquedas
 wikipedia==1.4.0
@@ -32,8 +33,6 @@ reportlab==4.0.9
 
 # Email
 secure-smtplib==0.1.1
-
-# Variables de entorno
 python-dotenv==1.0.0
 
 # Seguridad
@@ -42,3 +41,9 @@ bcrypt==4.1.2
 
 # Templates
 jinja2==3.1.2
+
+# Para navegador (sin psutil que no es compatible)
+webbrowser==0.0.0
+
+# Para detectar palabra clave (alternativa más liviana)
+vosk==0.3.45  # O usar whisper offline como alternativa

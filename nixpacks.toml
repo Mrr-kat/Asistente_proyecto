@@ -1,0 +1,14 @@
+[phases.setup]
+aptPackages = [
+    "ffmpeg",
+    "libsndfile1",
+    "portaudio19-dev",
+    "python3-dev",
+    "build-essential"
+]
+
+[phases.install]
+cmds = ["pip install -r requirements.txt"]
+
+[start]
+cmd = "python -m uvicorn main:app_mount --host 0.0.0.0 --port $PORT"

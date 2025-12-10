@@ -141,3 +141,64 @@ function reiniciarTemporizadorSilencio() {
   }, tiempoSilencio); // 3 segundos
 }
 
+async function procesarComandoTexto(texto) {
+    try {
+        const response = await fetch("/comando", {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+            },
+            body: JSON.stringify({ texto: texto })
+        });
+        
+        const resultado = await response.json();
+        
+        if (resultado.url) {
+            // Abrir en nueva pestaña
+            window.open(resultado.url, '_blank');
+        }
+        
+        transcripcionDiv.textContent = `Comando: ${texto}\nResultado: ${resultado.resultado}`;
+        
+    } catch (error) {
+        console.error("Error procesando comando:", error);
+        transcripcionDiv.textContent = "Error procesando comando";
+    }
+}
+
+// Agregar input de texto para comandos
+function agregarInputComando() {
+    const asistenteContainer = document.querySelector(".asistente-container");
+    
+    const inputContainer = document.createElement("div");
+    inputContainer.className = "input-comando-container";
+    inputContainer.innerHTML = `
+        <input type="text" id="input-comando" placeholder="Escribe tu comando aquí..." 
+               style="width: 100%; padding: 10px; margin: 10px 0; border-radius: 5px;">
+        <button id="btn-ejecutar-comando" 
+                style="padding: 10px 20px; background: #4CAF50; color: white; border: none; border-radius: 5px;">
+            Ejecutar Comando
+        </button>
+    `;
+    
+    asistenteContainer.appendChild(inputContainer);
+    
+    document.getElementById("btn-ejecutar-comando").addEventListener("click", () => {
+        const texto = document.getElementById("input-comando").value;
+        if (texto) {
+            procesarComandoTexto(texto);
+        }
+    });
+    
+    document.getElementById("input-comando").addEventListener("keypress", (e) => {
+        if (e.key === "Enter") {
+            const texto = document.getElementById("input-comando").value;
+            if (texto) {
+                procesarComandoTexto(texto);
+            }
+        }
+    });
+}
+
+// Llamar después de cargar la página
+document.addEventListener("DOMContentLoaded", agregarInputComando);
