@@ -1,4 +1,4 @@
-// historial.js (COMPLETO CORREGIDO)
+// historial.js (CÓDIGO COMPLETO CORREGIDO)
 class GestorHistorial {
     constructor() {
         this.initialize();
@@ -7,7 +7,7 @@ class GestorHistorial {
     initialize() {
         this.cargarElementos();
         this.configurarEventosHistorial();
-        this.observarCambiosSeccion();
+        this.cargarHistorialAutomatico();
     }
 
     cargarElementos() {
@@ -34,32 +34,41 @@ class GestorHistorial {
         if (this.btnGenerarReporte) {
             this.btnGenerarReporte.addEventListener('click', () => this.generarReportePDF());
         }
-    }
-
-    observarCambiosSeccion() {
-        // Observar cuando se activa la sección de historial
+        
+        // Observar cuando se muestra la sección de historial
         if (this.seccionHistorial) {
-            const observer = new MutationObserver((mutations) => {
-                mutations.forEach((mutation) => {
-                    if (mutation.attributeName === 'class') {
-                        if (this.seccionHistorial.classList.contains('activa')) {
-                            console.log('Sección historial activada, cargando datos...');
-                            setTimeout(() => {
-                                this.cargarHistorial();
-                            }, 300);
-                        }
+            this.observarCambiosSeccion();
+        }
+    }
+    
+    observarCambiosSeccion() {
+        // Observador para detectar cuando se activa la sección de historial
+        const observer = new MutationObserver((mutations) => {
+            mutations.forEach((mutation) => {
+                if (mutation.attributeName === 'class') {
+                    if (this.seccionHistorial.classList.contains('activa')) {
+                        console.log('Sección historial activada, cargando datos...');
+                        setTimeout(() => this.cargarHistorial(), 300);
                     }
-                });
+                }
             });
-            
-            observer.observe(this.seccionHistorial, { attributes: true });
+        });
+        
+        observer.observe(this.seccionHistorial, { attributes: true });
+    }
+    
+    cargarHistorialAutomatico() {
+        // Cargar historial si la sección ya está activa al cargar la página
+        if (this.seccionHistorial && this.seccionHistorial.classList.contains('activa')) {
+            console.log('Historial ya visible, cargando datos...');
+            setTimeout(() => this.cargarHistorial(), 500);
         }
     }
 
     async cargarHistorial(busqueda = '') {
         try {
             console.log('Cargando historial...');
-            this.mostrarCargando(true);
+            this.mostrarEstadoCarga(true);
             
             const url = busqueda ? `/historial?buscar=${encodeURIComponent(busqueda)}` : '/historial';
             const response = await fetch(url);
@@ -69,210 +78,100 @@ class GestorHistorial {
             }
             
             const data = await response.json();
-            console.log('Registros recibidos:', data.registros?.length || 0);
+            console.log('Datos recibidos:', data.registros ? data.registros.length : 0, 'registros');
             
-            this.mostrarHistorial(data.registros || []);
+            if (data.registros && Array.isArray(data.registros)) {
+                this.mostrarHistorial(data.registros);
+            } else {
+                console.error('Formato de datos inválido:', data);
+                this.mostrarError('Formato de datos inválido');
+            }
         } catch (error) {
             console.error('Error cargando historial:', error);
             this.mostrarError('Error al cargar el historial');
         } finally {
-            this.mostrarCargando(false);
+            this.mostrarEstadoCarga(false);
         }
     }
-
-    mostrarCargando(mostrar) {
+    
+    mostrarEstadoCarga(cargando) {
         if (!this.listaHistorial) return;
         
-        if (mostrar) {
+        if (cargando) {
             this.listaHistorial.innerHTML = `
-                <div class="cargando-historial">
-                    <box-icon name='loader-circle' animation='spin' size="48px" color="#4f46e5"></box-icon>
-                    <p>Cargando historial...</p>
+                <div class="sin-registros">
+                    <box-icon name='loader-circle' animation='spin' size="48px" color="#4CAF50"></box-icon>
+                    <p style="margin-top: 10px;">Cargando historial...</p>
                 </div>
             `;
-            
-            // Agregar estilos si no existen
-            if (!document.querySelector('#estilos-cargando')) {
-                const style = document.createElement('style');
-                style.id = 'estilos-cargando';
-                style.textContent = `
-                    .cargando-historial {
-                        text-align: center;
-                        padding: 3rem;
-                        color: #64748b;
-                    }
-                    .cargando-historial box-icon {
-                        margin-bottom: 1rem;
-                    }
-                `;
-                document.head.appendChild(style);
-            }
         }
     }
-
+    
     mostrarError(mensaje) {
-        if (!this.listaHistorial) return;
-        
-        this.listaHistorial.innerHTML = `
-            <div class="error-historial">
-                <box-icon name='error' size="48px" color="#f44336"></box-icon>
-                <p>${mensaje}</p>
-                <button class="btn-reintentar" onclick="window.gestorHistorial.cargarHistorial()">
-                    Reintentar
-                </button>
-            </div>
-        `;
-        
-        // Agregar estilos si no existen
-        if (!document.querySelector('#estilos-error')) {
-            const style = document.createElement('style');
-            style.id = 'estilos-error';
-            style.textContent = `
-                .error-historial {
-                    text-align: center;
-                    padding: 3rem;
-                    color: #64748b;
-                }
-                .error-historial box-icon {
-                    margin-bottom: 1rem;
-                }
-                .btn-reintentar {
-                    margin-top: 1rem;
-                    padding: 0.75rem 1.5rem;
-                    background: #4CAF50;
-                    color: white;
-                    border: none;
-                    border-radius: 8px;
-                    cursor: pointer;
-                    font-weight: 500;
-                    transition: all 0.3s ease;
-                }
-                .btn-reintentar:hover {
-                    background: #45a049;
-                    transform: translateY(-2px);
-                }
+        if (this.listaHistorial) {
+            this.listaHistorial.innerHTML = `
+                <div class="sin-registros">
+                    <box-icon name='error' size="48px" color="#f44336"></box-icon>
+                    <p>${mensaje}</p>
+                    <button onclick="window.gestorHistorial.cargarHistorial()" 
+                            style="margin-top: 10px; padding: 8px 16px; background: #4CAF50; color: white; border: none; border-radius: 5px; cursor: pointer;">
+                        Reintentar
+                    </button>
+                </div>
             `;
-            document.head.appendChild(style);
         }
     }
 
     mostrarHistorial(registros) {
-        if (!this.listaHistorial) {
-            console.error('Elemento lista-historial no encontrado');
-            return;
-        }
+        if (!this.listaHistorial) return;
         
         if (!registros || registros.length === 0) {
             this.listaHistorial.innerHTML = `
                 <div class="sin-registros">
                     <box-icon name='history' size="48px" color="#a0aec0"></box-icon>
                     <p>No hay registros en el historial</p>
-                    <p class="subtitulo">Los comandos que ejecutes aparecerán aquí</p>
+                    <p style="font-size: 0.9rem; color: #718096; margin-top: 5px;">
+                        Los comandos que ejecutes aparecerán aquí automáticamente
+                    </p>
                 </div>
             `;
-            
-            // Agregar estilos si no existen
-            if (!document.querySelector('#estilos-sin-registros')) {
-                const style = document.createElement('style');
-                style.id = 'estilos-sin-registros';
-                style.textContent = `
-                    .sin-registros {
-                        text-align: center;
-                        padding: 3rem;
-                        color: #a0aec0;
-                    }
-                    .sin-registros box-icon {
-                        margin-bottom: 1rem;
-                    }
-                    .sin-registros .subtitulo {
-                        font-size: 0.9rem;
-                        color: #718096;
-                        margin-top: 0.5rem;
-                    }
-                `;
-                document.head.appendChild(style);
-            }
             return;
         }
 
         this.listaHistorial.innerHTML = registros.map(registro => `
             <div class="registro-historial" data-id="${registro.id}">
-                <div class="registro-header">
-                    <div class="registro-tipo">
-                        <box-icon name='${this.obtenerIconoTipo(registro.comando_ejecutado)}' 
-                                 size="18px" color="#4f46e5"></box-icon>
-                        <span class="tipo-texto">${this.formatearTipoComando(registro.comando_ejecutado)}</span>
-                    </div>
-                    <span class="registro-fecha">
-                        <box-icon name='calendar' size="14px"></box-icon>
-                        ${registro.fecha_hora}
-                    </span>
-                </div>
-                
                 <div class="registro-comando">
                     <div class="comando-label">
-                        <box-icon name='user-voice' size="14px"></box-icon>
-                        <span>Usuario dijo:</span>
+                        <box-icon name='user-voice' size="16px"></box-icon>
+                        Usuario:
                     </div>
-                    <div class="comando-texto" contenteditable="false">${this.escapeHtml(registro.comando_usuario)}</div>
+                    <div class="comando-texto">${this.escapeHtml(registro.comando_usuario || 'Sin texto')}</div>
                 </div>
                 
                 <div class="registro-respuesta">
                     <div class="respuesta-label">
-                        <box-icon name='bot' size="14px"></box-icon>
-                        <span>Asistente respondió:</span>
+                        <box-icon name='bot' size="16px"></box-icon>
+                        Asistente:
                     </div>
-                    <div class="respuesta-texto" contenteditable="false">${this.escapeHtml(registro.respuesta_asistente)}</div>
+                    <div class="respuesta-texto">${this.escapeHtml(registro.respuesta_asistente || 'Sin respuesta')}</div>
                 </div>
                 
-                <div class="registro-actions">
-                    <button class="btn-editar" onclick="window.gestorHistorial.iniciarEdicion(${registro.id})" 
-                            title="Editar registro">
-                        <box-icon name='edit' size="16px"></box-icon>
-                        <span>Editar</span>
-                    </button>
-                    <button class="btn-guardar" onclick="window.gestorHistorial.guardarEdicion(${registro.id})" 
-                            title="Guardar cambios" style="display: none;">
-                        <box-icon name='save' size="16px"></box-icon>
-                        <span>Guardar</span>
-                    </button>
-                    <button class="btn-cancelar" onclick="window.gestorHistorial.cancelarEdicion(${registro.id})" 
-                            title="Cancelar edición" style="display: none;">
-                        <box-icon name='x' size="16px"></box-icon>
-                        <span>Cancelar</span>
-                    </button>
-                    <button class="btn-eliminar" onclick="window.gestorHistorial.eliminarRegistro(${registro.id})" 
-                            title="Eliminar registro">
-                        <box-icon name='trash' size="16px"></box-icon>
-                        <span>Eliminar</span>
-                    </button>
+                <div class="registro-footer">
+                    <div class="registro-fecha">
+                        <box-icon name='calendar' size="16px"></box-icon>
+                        ${registro.fecha_hora || 'Sin fecha'}
+                    </div>
+                    <div class="registro-actions">
+                        <button class="btn-editar" onclick="window.gestorHistorial.editarRegistro(${registro.id})" title="Editar">
+                            <box-icon name='edit' size="18px"></box-icon>
+                        </button>
+                        <button class="btn-eliminar" onclick="window.gestorHistorial.eliminarRegistro(${registro.id})" title="Eliminar">
+                            <box-icon name='trash' size="18px"></box-icon>
+                        </button>
+                    </div>
                 </div>
             </div>
         `).join('');
-    }
-
-    obtenerIconoTipo(tipoComando) {
-        const iconos = {
-            'reproduce': 'play-circle',
-            'busca en youtube': 'youtube',
-            'hora': 'time',
-            'busca en google': 'search',
-            'busca en wikipedia': 'book',
-            'informacion': 'info-circle'
-        };
-        return iconos[tipoComando] || 'command';
-    }
-
-    formatearTipoComando(tipoComando) {
-        const nombres = {
-            'reproduce': 'Reproducir',
-            'busca en youtube': 'Buscar en YouTube',
-            'hora': 'Consulta de hora',
-            'busca en google': 'Buscar en Google',
-            'busca en wikipedia': 'Consulta Wikipedia',
-            'informacion': 'Información'
-        };
-        return nombres[tipoComando] || tipoComando;
     }
 
     escapeHtml(text) {
@@ -298,10 +197,6 @@ class GestorHistorial {
                 }
             });
             
-            if (!response.ok) {
-                throw new Error(`Error HTTP: ${response.status}`);
-            }
-            
             const data = await response.json();
             
             if (data.archivo) {
@@ -309,7 +204,7 @@ class GestorHistorial {
                 window.open(data.archivo, '_blank');
                 this.mostrarNotificacion('✅ Reporte PDF generado exitosamente', 'success');
             } else {
-                throw new Error('No se generó el archivo');
+                this.mostrarNotificacion('❌ Error al generar el reporte', 'error');
             }
         } catch (error) {
             console.error('Error generando reporte PDF:', error);
@@ -318,7 +213,7 @@ class GestorHistorial {
     }
 
     async eliminarRegistro(id) {
-        if (!confirm('¿Estás seguro de que quieres eliminar este registro?\nEsta acción no se puede deshacer.')) {
+        if (!confirm('¿Estás seguro de que quieres eliminar este registro?')) {
             return;
         }
 
@@ -327,15 +222,12 @@ class GestorHistorial {
                 method: 'DELETE' 
             });
             
-            if (!response.ok) {
-                throw new Error(`Error HTTP: ${response.status}`);
-            }
-            
             const data = await response.json();
             
             if (data.mensaje) {
                 this.mostrarNotificacion('✅ Registro eliminado exitosamente', 'success');
-                this.cargarHistorial(); // Recargar la lista
+                // Recargar el historial después de eliminar
+                setTimeout(() => this.cargarHistorial(), 300);
             } else {
                 this.mostrarNotificacion('❌ Error eliminando registro', 'error');
             }
@@ -345,80 +237,33 @@ class GestorHistorial {
         }
     }
 
-    iniciarEdicion(id) {
+    editarRegistro(id) {
         const registroElement = document.querySelector(`.registro-historial[data-id="${id}"]`);
-        if (!registroElement) return;
-        
-        // Habilitar edición
-        const comandoTexto = registroElement.querySelector('.comando-texto');
-        const respuestaTexto = registroElement.querySelector('.respuesta-texto');
-        
-        comandoTexto.setAttribute('contenteditable', 'true');
-        respuestaTexto.setAttribute('contenteditable', 'true');
-        
-        comandoTexto.style.border = '2px solid #4f46e5';
-        respuestaTexto.style.border = '2px solid #4f46e5';
-        comandoTexto.style.padding = '10px';
-        respuestaTexto.style.padding = '10px';
-        comandoTexto.style.borderRadius = '5px';
-        respuestaTexto.style.borderRadius = '5px';
-        comandoTexto.style.backgroundColor = '#f8fafc';
-        respuestaTexto.style.backgroundColor = '#f8fafc';
-        
-        // Mostrar botones de guardar/cancelar, ocultar editar/eliminar
-        registroElement.querySelector('.btn-editar').style.display = 'none';
-        registroElement.querySelector('.btn-eliminar').style.display = 'none';
-        registroElement.querySelector('.btn-guardar').style.display = 'flex';
-        registroElement.querySelector('.btn-cancelar').style.display = 'flex';
-        
-        // Guardar contenido original
-        comandoTexto.dataset.original = comandoTexto.textContent;
-        respuestaTexto.dataset.original = respuestaTexto.textContent;
-        
-        // Enfocar el primer campo editable
-        comandoTexto.focus();
-    }
-
-    cancelarEdicion(id) {
-        const registroElement = document.querySelector(`.registro-historial[data-id="${id}"]`);
-        if (!registroElement) return;
-        
-        // Restaurar contenido original
-        const comandoTexto = registroElement.querySelector('.comando-texto');
-        const respuestaTexto = registroElement.querySelector('.respuesta-texto');
-        
-        if (comandoTexto.dataset.original) {
-            comandoTexto.textContent = comandoTexto.dataset.original;
-        }
-        if (respuestaTexto.dataset.original) {
-            respuestaTexto.textContent = respuestaTexto.dataset.original;
-        }
-        
-        this.finalizarEdicion(registroElement);
-    }
-
-    async guardarEdicion(id) {
-        const registroElement = document.querySelector(`.registro-historial[data-id="${id}"]`);
-        if (!registroElement) return;
-        
-        const comandoTexto = registroElement.querySelector('.comando-texto');
-        const respuestaTexto = registroElement.querySelector('.respuesta-texto');
-        
-        const nuevoComando = comandoTexto.textContent.trim();
-        const nuevaRespuesta = respuestaTexto.textContent.trim();
-        
-        if (!nuevoComando || !nuevaRespuesta) {
-            this.mostrarNotificacion('❌ Ambos campos son requeridos', 'error');
+        if (!registroElement) {
+            this.mostrarNotificacion('❌ No se encontró el registro', 'error');
             return;
         }
         
+        const comandoUsuario = registroElement.querySelector('.comando-texto').textContent;
+        const respuestaAsistente = registroElement.querySelector('.respuesta-texto').textContent;
+        
+        const nuevoComando = prompt('Editar lo que dijo el usuario:', comandoUsuario);
+        if (nuevoComando === null) return; // Usuario canceló
+        
+        const nuevaRespuesta = prompt('Editar la respuesta del asistente:', respuestaAsistente);
+        if (nuevaRespuesta === null) return; // Usuario canceló
+        
+        if (nuevoComando !== comandoUsuario || nuevaRespuesta !== respuestaAsistente) {
+            this.actualizarRegistro(id, nuevoComando, nuevaRespuesta);
+        }
+    }
+
+    async actualizarRegistro(id, comandoUsuario, respuestaAsistente) {
         try {
             const datos = {
-                comando_usuario: nuevoComando,
-                respuesta_asistente: nuevaRespuesta
+                comando_usuario: comandoUsuario,
+                respuesta_asistente: respuestaAsistente
             };
-            
-            this.mostrarNotificacion('⏳ Guardando cambios...', 'info');
             
             const response = await fetch(`/historial/${id}`, {
                 method: 'PUT',
@@ -428,19 +273,12 @@ class GestorHistorial {
                 body: JSON.stringify(datos)
             });
             
-            if (!response.ok) {
-                throw new Error(`Error HTTP: ${response.status}`);
-            }
-            
             const data = await response.json();
             
             if (data.mensaje) {
                 this.mostrarNotificacion('✅ Registro actualizado exitosamente', 'success');
-                this.finalizarEdicion(registroElement, false);
-                
-                // Actualizar datos locales
-                comandoTexto.dataset.original = nuevoComando;
-                respuestaTexto.dataset.original = nuevaRespuesta;
+                // Recargar el historial después de actualizar
+                setTimeout(() => this.cargarHistorial(), 300);
             } else {
                 this.mostrarNotificacion('❌ Error actualizando registro', 'error');
             }
@@ -450,31 +288,8 @@ class GestorHistorial {
         }
     }
 
-    finalizarEdicion(registroElement, mantenerCambios = true) {
-        const comandoTexto = registroElement.querySelector('.comando-texto');
-        const respuestaTexto = registroElement.querySelector('.respuesta-texto');
-        
-        // Deshabilitar edición
-        comandoTexto.setAttribute('contenteditable', 'false');
-        respuestaTexto.setAttribute('contenteditable', 'false');
-        
-        // Remover estilos
-        comandoTexto.style.border = '';
-        respuestaTexto.style.border = '';
-        comandoTexto.style.padding = '';
-        respuestaTexto.style.padding = '';
-        comandoTexto.style.backgroundColor = '';
-        respuestaTexto.style.backgroundColor = '';
-        
-        // Mostrar botones normales
-        registroElement.querySelector('.btn-editar').style.display = 'flex';
-        registroElement.querySelector('.btn-eliminar').style.display = 'flex';
-        registroElement.querySelector('.btn-guardar').style.display = 'none';
-        registroElement.querySelector('.btn-cancelar').style.display = 'none';
-    }
-
     mostrarNotificacion(mensaje, tipo) {
-        // Remover notificaciones anteriores
+        // Eliminar notificaciones anteriores
         const notificacionesAnteriores = document.querySelectorAll('.notificacion-flotante');
         notificacionesAnteriores.forEach(notif => notif.remove());
         
@@ -484,24 +299,25 @@ class GestorHistorial {
             position: fixed;
             top: 20px;
             right: 20px;
-            padding: 1rem 1.5rem;
-            border-radius: 10px;
+            padding: 12px 20px;
+            border-radius: 8px;
             color: white;
             font-weight: 500;
             z-index: 9999;
-            transition: all 0.3s ease;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
             display: flex;
             align-items: center;
             gap: 10px;
-            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            transition: all 0.3s ease;
             ${tipo === 'success' ? 'background: linear-gradient(135deg, #48bb78, #38a169);' : 
               tipo === 'error' ? 'background: linear-gradient(135deg, #f56565, #e53e3e);' : 
               'background: linear-gradient(135deg, #4299e1, #3182ce);'}
         `;
         
         notificacion.innerHTML = `
-            <box-icon name='${tipo === 'success' ? 'check-circle' : tipo === 'error' ? 'error' : 'info-circle'}' 
-                     color="white" size="20px"></box-icon>
+            ${tipo === 'success' ? '<box-icon name="check-circle" color="white"></box-icon>' :
+              tipo === 'error' ? '<box-icon name="error" color="white"></box-icon>' :
+              '<box-icon name="info-circle" color="white"></box-icon>'}
             <span>${mensaje}</span>
         `;
         
@@ -509,11 +325,11 @@ class GestorHistorial {
         
         // Animar entrada
         setTimeout(() => {
-            notificacion.style.transform = 'translateX(0)';
             notificacion.style.opacity = '1';
+            notificacion.style.transform = 'translateX(0)';
         }, 10);
         
-        // Configurar animación de salida
+        // Remover después de 3 segundos
         setTimeout(() => {
             notificacion.style.opacity = '0';
             notificacion.style.transform = 'translateX(20px)';
@@ -526,26 +342,37 @@ class GestorHistorial {
     }
 }
 
-// Inicializar automáticamente cuando se carga la página
+// Inicializar cuando se carga la página
 document.addEventListener('DOMContentLoaded', () => {
-    console.log('Inicializando gestor de historial...');
+    console.log('DOM cargado, inicializando gestor de historial...');
+    window.gestorHistorial = new GestorHistorial();
     
-    // Esperar un momento para asegurar que todos los elementos estén cargados
-    setTimeout(() => {
-        window.gestorHistorial = new GestorHistorial();
-        
-        // Cargar historial si estamos en la sección activa
-        const seccionHistorial = document.getElementById('seccion-historial');
-        if (seccionHistorial && seccionHistorial.classList.contains('activa')) {
-            console.log('Historial ya activo, cargando datos...');
-            window.gestorHistorial.cargarHistorial();
-        }
-        
-        console.log('Gestor de historial inicializado correctamente');
-    }, 500);
+    // También cargar historial cuando se navegue a esa sección vía botones
+    const btnHistorial = document.getElementById('btn-historial');
+    if (btnHistorial) {
+        btnHistorial.addEventListener('click', () => {
+            setTimeout(() => {
+                if (window.gestorHistorial && window.gestorHistorial.seccionHistorial) {
+                    if (window.gestorHistorial.seccionHistorial.classList.contains('activa')) {
+                        window.gestorHistorial.cargarHistorial();
+                    }
+                }
+            }, 100);
+        });
+    }
 });
 
-// Asegurar que se pueda acceder desde la consola para debugging
-if (typeof window !== 'undefined') {
-    window.GestorHistorial = GestorHistorial;
-}
+// Función global para recargar el historial desde otras partes de la aplicación
+window.recargarHistorial = function() {
+    if (window.gestorHistorial) {
+        window.gestorHistorial.cargarHistorial();
+    }
+};
+
+// Escuchar eventos personalizados para actualizar el historial
+document.addEventListener('comandoEjecutado', () => {
+    console.log('Comando ejecutado, recargando historial...');
+    if (window.gestorHistorial) {
+        setTimeout(() => window.gestorHistorial.cargarHistorial(), 500);
+    }
+});
