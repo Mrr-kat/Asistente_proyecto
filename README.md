@@ -51,11 +51,12 @@
 - **Railway.app**: Plataforma de despliegue
 - **Docker**: Contenerización de la aplicación
 
-
 ###  **Comandos Disponibles**
-```bash
-"reproduce [música]"       # Busca en YouTube
-"busca en youtube [texto]" # Búsqueda específica
-"hora"                     # Hora actual
-"busca en [texto]"         # Búsqueda en Google
-"dime [tema]"              # Información en Wikipedia
+| Categoría | Comandos | Ejemplo | Descripción |
+|-----------|----------|---------|-------------|
+| ** Multimedia** | `reproduce [canción]` | `"reproduce Bohemian Rhapsody"` | Busca en YouTube |
+| | `busca en youtube [tema]` | `"busca en youtube tutorial Python"` | Búsqueda en YouTube |
+| ** Web** | `busca en google [consulta]` | `"busca en google IA"` | Búsqueda web |
+| | `abre [sitio]` | `"abre GitHub"` | Abre páginas web |
+| ** Utilidades** | `hora` | `"hora"` | Hora actual |
+| ** Info** | `dime sobre [tema]` | `"dime sobre Python"` | Consulta |
