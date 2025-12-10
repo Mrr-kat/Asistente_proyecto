@@ -1,0 +1,187 @@
+<!-- templates/Asistente/M.0.1.html -->
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>M.0.1 - Asistente Virtual</title>
+    <link rel="stylesheet" href="/static/estilos/M.0.1.css">
+    <link rel="stylesheet" href="/static/estilos/dashboard.css">
+    <script src="https://unpkg.com/boxicons@2.1.4/dist/boxicons.js"></script>
+    <script src="https://cdn.socket.io/4.5.0/socket.io.min.js"></script>
+    <!-- Chart.js para gráficos del dashboard -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+    
+    <header class="header">
+        <div class="logo">
+        </div>
+        <nav class="navegacion">
+            <button id="btn-asistente" class="nav-btn active">
+                <box-icon name='microphone'></box-icon>
+                <span>Asistente</span>
+            </button>
+            <button id="btn-historial" class="nav-btn">
+                <box-icon name='history'></box-icon>
+                <span>Historial</span>
+            </button>
+            <button id="btn-dashboard" class="nav-btn">
+                <box-icon name='stats'></box-icon>
+                <span>Dashboard</span>
+            </button>
+        </nav>
+        
+        <div class="user-menu">
+            <span class="username">Hola, {{ usuario }}</span>
+            <button id="btn-logout" class="logout-btn" title="Cerrar sesión">
+                <box-icon name='log-out'></box-icon>
+            </button>
+        </div>
+    </header>
+
+    <section id="seccion-asistente" class="seccion activa">
+        <div class="asistente-container">
+            <div class="mic-container">
+                <button id="microfono" class="mic-btn">
+                    <box-icon name="microphone"></box-icon>
+                </button>
+            </div>
+            <div id="transcripcion" class="transcripcion"></div>
+            <audio id="audioReproducir" controls class="audio-player"></audio>
+        </div>
+    </section>
+
+    <section id="seccion-historial" class="seccion">
+        <div class="historial-header">
+            <h2>Historial</h2>
+            
+            <div class="controles-historial">
+                <div class="busqueda-container">
+                    <input type="text" id="buscar-historial" placeholder="Buscar en historial...">
+                    <button id="btn-buscar" class="btn-primary">Buscar</button>
+                </div>
+                
+                <div class="acciones-container">
+                    <button id="btn-generar-reporte" class="btn-secondary">
+                        <box-icon name='download'></box-icon>
+                        PDF
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <div id="estadisticas" class="estadisticas-card" style="display: none;"></div>
+        
+        <div id="lista-historial" class="lista-historial"></div>
+    </section>
+
+    <section id="seccion-dashboard" class="seccion">
+        <div class="dashboard-header">
+            <h2>Dashboard de Estadísticas</h2>
+            <div class="dashboard-controls">
+                <button id="btn-actualizar-dashboard" class="btn-primary">
+                    <box-icon name='refresh'></box-icon>
+                    Actualizar
+                </button>
+                <button id="btn-descargar-reporte" class="btn-secondary">
+                    <box-icon name='download'></box-icon>
+                    Descargar Reporte
+                </button>
+            </div>
+        </div>
+        
+        <div class="dashboard-content">
+            <!-- Tarjetas de resumen -->
+            <div class="resumen-cards">
+                <div class="card estadistica-card">
+                    <div class="card-icon" style="background: #4f46e5;">
+                        <box-icon name='command'></box-icon>
+                    </div>
+                    <div class="card-content">
+                        <h3 id="total-comandos">0</h3>
+                        <p>Comandos Totales</p>
+                    </div>
+                </div>
+                
+                <div class="card estadistica-card">
+                    <div class="card-icon" style="background: #10b981;">
+                        <box-icon name='check-circle'></box-icon>
+                    </div>
+                    <div class="card-content">
+                        <h3 id="tasa-exito">0%</h3>
+                        <p>Tasa de Éxito</p>
+                    </div>
+                </div>
+                
+                <div class="card estadistica-card">
+                    <div class="card-icon" style="background: #f59e0b;">
+                        <box-icon name='trending-up'></box-icon>
+                    </div>
+                    <div class="card-content">
+                        <h3 id="variacion">0%</h3>
+                        <p>Crecimiento Mensual</p>
+                    </div>
+                </div>
+                
+                <div class="card estadistica-card">
+                    <div class="card-icon" style="background: #ef4444;">
+                        <box-icon name='time'></box-icon>
+                    </div>
+                    <div class="card-content">
+                        <h3 id="ultimo-uso">Nunca</h3>
+                        <p>Último Uso</p>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Gráficos -->
+            <div class="graficos-container">
+                <div class="grafico-card">
+                    <h3>Comandos por Tipo</h3>
+                    <canvas id="grafico-comandos-tipo"></canvas>
+                </div>
+                
+                <div class="grafico-card">
+                    <h3>Uso Últimos 7 Días</h3>
+                    <canvas id="grafico-ultimos-7-dias"></canvas>
+                </div>
+                
+                <div class="grafico-card">
+                    <h3>Distribución por Hora</h3>
+                    <canvas id="grafico-por-hora"></canvas>
+                </div>
+                
+                <div class="grafico-card">
+                    <h3>Tendencias Mensuales</h3>
+                    <canvas id="grafico-tendencias"></canvas>
+                </div>
+            </div>
+            
+            <!-- Tablas de datos -->
+            <div class="tablas-container">
+                <div class="tabla-card">
+                    <h3>Comandos Más Usados</h3>
+                    <div id="tabla-comandos-populares" class="tabla-datos"></div>
+                </div>
+                
+                <div class="tabla-card">
+                    <h3>Estadísticas por Día</h3>
+                    <div id="tabla-estadisticas-dia" class="tabla-datos"></div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <script src="/static/acciones/M.0.1.JS"></script>
+    <script src="/static/acciones/historial.js"></script>
+    <script src="/static/acciones/dashboard.js"></script>
+    <script>
+    document.getElementById('btn-logout').addEventListener('click', () => {
+        if (confirm('¿Estás seguro de que quieres cerrar sesión?')) {
+            window.location.href = '/logout';
+        }
+    });
+    </script>
+</body>
+</html>
